@@ -62,7 +62,10 @@ public:
     template <typename T>
     T *Get()
     {
+
         if(_content==nullptr)return nullptr;
+        //你要拿的类型与我的类型并不相同,我也返回空
+        if(typeid(T)!=_content->Type()) return nullptr;
         //这里需要把基类指针强转成子类指针,才能够访问子类对象
         //这里有优先级问题,能加括号就加括号,或者采用c++的方式
         //(PlaceHolder<T>*)_content
