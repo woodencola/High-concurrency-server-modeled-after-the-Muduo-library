@@ -125,6 +125,7 @@ namespace Buffer_Module
         }
         char * GetCRLF()
         {
+            
             char* ret = (char*)memchr(GetCurrentReadPosition(),'\n',CurrentEnableReadSpaceSize());
             return ret;
         }
