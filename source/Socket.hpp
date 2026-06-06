@@ -150,7 +150,7 @@ public:
         _sockfd = -1;
     }
     // 创建一个服务端连接
-    bool CreateServerConnect(uint16_t port, const std::string &ip = "0.0.0.0")
+    bool CreateServerConnect(uint16_t port, const std::string &ip = "0.0.0.0",bool is_)
     {
         //1.创建套接字,绑定网络信息,设置监听状态,设置非阻塞,开启地址复用
         if(SocketCreate()==false) 
