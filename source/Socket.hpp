@@ -7,6 +7,7 @@
 #include<cstdlib>
 #include<unistd.h>
 #include <errno.h>
+#include<fcntl.h>
 #include "Log.hpp"
 
 const static int Default_Backlog = 32;
@@ -151,17 +152,48 @@ public:
     // 创建一个服务端连接
     bool CreateServerConnect(uint16_t port, const std::string &ip = "0.0.0.0")
     {
+        //1.创建套接字,绑定网络信息,设置监听状态,设置非阻塞,开启地址复用
+        if(SocketCreate()==false) 
+        {
+            return false;
+        }
+        if(Bind(port,ip)==false)
+        {
+            return false;
+        }
+        if(Listen()==false)
+        {
+            return false;   
+        }
+        SetNoBlock();
+        SetAddressReuse();
+        return true;
     }
     // 创建一个客户端连接
     bool CreateClientConnect(uint16_t port, const std::string &ip)
     {
+        //1.创建套接字,2.直接向服务器发起连接
+        //2.本地不绑定任何端口和ip,防止端口冲突
+        if(SocketCreate()==false)
+        {
+            return false;
+        }
+        if(Connect(ip,port)==false)
+        {
+            return false;
+        }
+        return true;
     }
     // 开启地址端口重用
     void SetAddressReuse()
     {
+        int val = 1;
+        setsockopt(_sockfd,SOL_SOCKET,SO_REUSEADDR|SO_REUSEPORT,&val,sizeof(val));
     }
     // 设置为非阻塞
     void SetNoBlock()
     {
+        int flag = fcntl(_sockfd,F_GETFD);
+        fcntl(_sockfd,F_SETFD,flag|O_NONBLOCK);
     }
 };
