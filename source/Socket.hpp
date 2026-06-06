@@ -116,7 +116,7 @@ public:
         return Recv(buffer, len, MSG_DONTWAIT);
     }
     // 发送数据
-    ssize_t Send(void *data, uint64_t len, int flag = 0)
+    ssize_t Send( const void *data, uint64_t len, int flag = 0)
     {
         ssize_t ret = send(_sockfd, data, len, flag);
         if (ret <= 0)
