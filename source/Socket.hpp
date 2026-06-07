@@ -23,6 +23,10 @@ public:
         _sockfd = fd;
     }
     //拷贝赋值,这两个必须禁止,防止多次关闭sockfd
+    int Get_fd()
+    {
+        return _sockfd;
+    }
     Socket(const Socket& e) = delete;
     Socket& operator=(const Socket& e) = delete;
     ~Socket() {Close();}
@@ -150,13 +154,15 @@ public:
         _sockfd = -1;
     }
     // 创建一个服务端连接
-    bool CreateServerConnect(uint16_t port, const std::string &ip = "0.0.0.0",bool is_)
+    bool CreateServerConnect(uint16_t port, const std::string &ip = "0.0.0.0",bool is_block = false)
     {
         //1.创建套接字,绑定网络信息,设置监听状态,设置非阻塞,开启地址复用
         if(SocketCreate()==false) 
         {
             return false;
         }
+        if(is_block)
+        SetNoBlock();
         if(Bind(port,ip)==false)
         {
             return false;
@@ -165,7 +171,7 @@ public:
         {
             return false;   
         }
-        SetNoBlock();
+        
         SetAddressReuse();
         return true;
     }

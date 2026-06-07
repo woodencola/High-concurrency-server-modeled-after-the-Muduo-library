@@ -1,5 +1,5 @@
 .PHONY:ALL
-ALL:buffer_test log_test Client_test Server_test Channel_test
+ALL:buffer_test log_test Client_test Server_test Channel_test poller_test
 buffer_test:buffertest.cc
 	g++ -o $@ $^ -std=c++17 -lpthread
 log_test:log_test.cc
@@ -10,6 +10,8 @@ Server_test:Server_test.cc
 	g++ -o $@ $^ -std=c++17 -lpthread
 Channel_test:Channel_test.cc
 	g++ -o $@ $^ -std=c++17 -lpthread
+poller_test:poller_test.cc
+	g++ -o $@ $^ -std=c++17 -lpthread
 .PHONY:clean
 clean:
-	rm -rf buffer_test
+	rm -rf buffer_test log_test Client_test Server_test Channel_test poller_test
