@@ -6,6 +6,7 @@
 class Channel
 {
 private:
+    int _fd;
     uint32_t _event;  // 表示需要监控的事件
     uint32_t _revent; // 表示实际触发的事件
     using eventcallback_t = std::function<void()>;
@@ -15,6 +16,16 @@ private:
     eventcallback_t _Err_Callback;   // 错误事件回调
     eventcallback_t _Event_Callback; // 任意事件回调
 public:
+    Channel(int fd):_fd(fd){}
+    ~Channel(){}
+    int Get_Fd()
+    {
+        return _fd;
+    }
+    int Get_Event()
+    {
+        return _event;
+    }
     bool Fd_Is_Read()
     {
         return _event & EPOLLIN;
