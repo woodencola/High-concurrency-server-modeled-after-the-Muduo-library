@@ -11,8 +11,13 @@
 #include <vector>
 #include "Channel.hpp"
 #include "Poller.hpp"
-
-class EventLoop
+// 【主线程】MainReactor（只负责accept新连接）
+//          ↓ 负载均衡分配
+// ┌───────────┬───────────┬───────────┐
+// SubReactor1 SubReactor2 SubReactor3 ... （EventLoop从反应堆）
+// 线程1)     (线程2)     (线程3)
+// 每个SubReactor 挂 N 个 Connection
+class EventLoop :public std::enable_shared_from_this<EventLoop>
 {
 
 private:
@@ -25,6 +30,10 @@ private:
     std::mutex _mutex;             // 锁任务队列,保证线程安全
 
 public:
+    std::shared_ptr<EventLoop> Get_this()
+    {
+        return shared_from_this();
+    }
     void RunAlltask()
     {
         std::vector<Func> _task;

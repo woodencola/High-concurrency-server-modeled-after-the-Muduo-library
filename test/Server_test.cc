@@ -79,7 +79,13 @@ int main()
     lis_ser->Fd_Add_Read();
     while(1)
     {
-       loop.Start();
+        // std::vector<Channel*> active;
+        // p.Poll(&active);
+        // for(auto& e:active)
+        // {
+        //     e->HanderEvent();
+        // }
+        loop.Start();
     }
     Server.Close();
     return 0;
