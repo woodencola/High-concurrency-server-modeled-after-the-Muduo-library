@@ -5,11 +5,13 @@
 #include <sys/epoll.h>
 #include<unistd.h>
 class Poller;
+class EventLoop;
 class Channel
 {
 private:
     int _fd;
     Poller* _poller;
+    EventLoop* _eventloop;
     uint32_t _event;  // 表示需要监控的事件
     uint32_t _revent; // 表示实际触发的事件
     using eventcallback_t = std::function<void()>;
@@ -21,6 +23,7 @@ private:
 public:
     Channel() =default;
     Channel(int fd,Poller* poller):_fd(fd),_poller(poller){}
+    Channel(int fd,EventLoop* EventLoop):_fd(fd),_eventloop(EventLoop){}
     ~Channel(){
          close(_fd);
     }
