@@ -33,15 +33,17 @@ private:
     timeer_callback_t _task;
     // 对应的任务执行完需要释放
     release_time_task_t _release;
-
+     bool _canceled; 
 public:
     time_task(uint64_t id, uint64_t time, const timeer_callback_t &task)
         : _id(id), _time(time), _task(task) {}
     ~time_task()
     {
+        if(!_canceled)
         _task();
         _release();
     }
+    void Cancel() { _canceled = true; }
     void set_release(const release_time_task_t &cb)
     {
         _release = cb;
@@ -76,13 +78,25 @@ private:
 
         itimerspec t;
         // 第一次的超时时间
-        t.it_value.tv_sec = 10;
+        t.it_value.tv_sec = 1;
         t.it_value.tv_nsec = 0;
         // 超时后的时间间隔
-        t.it_interval.tv_sec = 3;
+        t.it_interval.tv_sec = 1;
         t.it_interval.tv_nsec = 0;
         timerfd_settime(timerfd, 0, &t, nullptr);
         return timerfd;
+    }
+    void RemoveTaskFromWheel(const time_task_ptr_t &task)
+    {
+        for (auto &vec : _wheels)
+        {
+            auto it = std::find(vec.begin(), vec.end(), task);
+            if (it != vec.end())
+            {
+                vec.erase(it);
+                return; // 每个任务只应出现在一个槽位
+            }
+        }
     }
     void Timerfd_Tick()
     {
@@ -121,11 +135,11 @@ public:
 
 public:
     void set_time_task_loop(uint64_t id, uint64_t time, const timeer_callback_t &task);
-   
+
     void flush_time_task_loop(uint64_t id);
-    
+
     void remove_time_task_loop(uint64_t id);
- 
+
     bool HasTimer(uint64_t id)
     {
         // 该函数存在线程安全问题,只能够在EventLoop线程当中使用
@@ -141,6 +155,17 @@ public:
 private:
     void set_time_task(uint64_t id, uint64_t time, const timeer_callback_t &task)
     {
+        auto it = _timers.find(id);
+        if (it != _timers.end())
+        {
+            auto old_ptr = it->second.lock();
+            if (old_ptr)
+            {
+                 old_ptr->Cancel();      
+                RemoveTaskFromWheel(old_ptr);
+            }
+            _timers.erase(it);
+        }
         time_task_ptr_t ptr = std::make_shared<time_task>(id, time, task);
         _timers[id] = ptr;
         ptr->set_release(std::bind(&time_task_wheel::remove_time_task, this, id));
@@ -156,6 +181,14 @@ private:
             //  std::cerr << " not find" << std::endl;
             return;
         }
+        auto ptr1 = it->second.lock();
+        if (!ptr1)
+        {
+            // ptr->Cancel();      
+            _timers.erase(it);
+            return;
+        }
+        RemoveTaskFromWheel(ptr1);
         time_task_ptr_t ptr = it->second.lock();
         int time = ptr->delay_time();
         uint64_t pos = (time + _tick) % _capacity;
@@ -172,9 +205,16 @@ private:
         auto it = _timers.find(id);
         if (it == _timers.end())
         {
+            
             //  std::cerr << " not find" << std::endl;
             return;
         }
+         auto ptr = it->second.lock();
+        if (ptr)
+        { 
+             ptr->Cancel();      
+            RemoveTaskFromWheel(ptr);   
+        }   
         _timers.erase(it);
     }
 };
@@ -347,11 +387,11 @@ void time_task_wheel::set_time_task_loop(uint64_t id, uint64_t time, const timee
 {
     _loop.lock()->RunInLoop(std::bind(&time_task_wheel::set_time_task, this, id, time, task));
 }
-void  time_task_wheel::flush_time_task_loop(uint64_t id)
+void time_task_wheel::flush_time_task_loop(uint64_t id)
 {
     _loop.lock()->RunInLoop(std::bind(&time_task_wheel::flush_time_task, this, id));
 }
-void  time_task_wheel::remove_time_task_loop(uint64_t id)
+void time_task_wheel::remove_time_task_loop(uint64_t id)
 {
     _loop.lock()->RunInLoop(std::bind(&time_task_wheel::remove_time_task, this, id));
 }

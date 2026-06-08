@@ -6,48 +6,54 @@
 #include"../source/Poller.hpp"
 #include"../source/Channel.hpp"
 #include"../source/Log.hpp"
-void Close(Channel* ch)
+void Close(Channel* ch,EventLoop* _loop)
 {
-    std::cout<< "close"<<ch->Get_Fd()<<std::endl;
+    // std::cout<< "close"<<ch->Get_Fd()<<std::endl;
+    ERR_LOG("close fd is %d",ch->Get_Fd());
+    _loop->TimeRemove(ch->Get_Fd());
     ch->Remove();
     delete ch;
 }
-void Read(Channel* ch)
+void Read(Channel* ch,EventLoop* _loop)
 {
     int fd = ch->Get_Fd();
     char buffer[1024] = {0};
     ssize_t  ret = recv(fd,buffer,1023,0);
     if(ret<=0)
     {
-        Close(ch);
+        Close(ch,_loop);
         return;
     }
     ch->Fd_Add_Write();
-    std::cout<<buffer<<std::endl;
+    // std::cout<<buffer<<std::endl;
+     ERR_LOG("%s",buffer);
+    //ERR_LOG(buffer);
 
 }
 
-void Write(Channel* ch)
+void Write(Channel* ch,EventLoop* _loop)
 {
     std::string sendmsg = "我爱你";
     ssize_t ret = send(ch->Get_Fd(),sendmsg.c_str(),sendmsg.size(),0);
     if(ret<0)
     {
         ERR_LOG("send error");
-        Close(ch);
+        Close(ch,_loop);
         return;
     }
     ch->Fd_Delete_Write();
 
 
 } 
-void ERR_callbakc(Channel* ch)
+void ERR_callbakc(Channel* ch,EventLoop* _loop)
 {
-    Close(ch);
+    Close(ch,_loop);
 }
-void Eevent(Channel* ch)
+void Eevent(Channel* ch,EventLoop* _loop)
 {
-    std::cout<<"i have a plan"<<std::endl;
+    // std::cout<<"i have a plan"<<std::endl;
+    ERR_LOG("I Have a plan");
+    _loop->TimerFlush(ch->Get_Fd());
 }
 void Accpet(EventLoop* _poller,Channel* ch)
 {
@@ -59,26 +65,28 @@ void Accpet(EventLoop* _poller,Channel* ch)
         return;
     }
     Channel* io =  new Channel(newfd,_poller);
-    io->Set_close_Callback(std::bind(Close,io));
-    io->Set_Err_Callback(std::bind(ERR_callbakc,io));
-    io->Set_Event_Callback(std::bind(Eevent,io));
-    io->Set_Read_Callback(std::bind(Read,io));
-    io->Set_Write_Callback(std::bind(Write,io));
+    io->Set_close_Callback(std::bind(Close,io,_poller));
+    io->Set_Err_Callback(std::bind(ERR_callbakc,io,_poller));
+    io->Set_Event_Callback(std::bind(Eevent,io,_poller));
+    io->Set_Read_Callback(std::bind(Read,io,_poller));
+    io->Set_Write_Callback(std::bind(Write,io,_poller));
+    _poller->TimerAdd(newfd,10,std::bind(Close,io,_poller));
     io->Fd_Add_Read();
 
 }
 int main()
 {
     //下面这两个东西下是一个模块的
-     EventLoop loop;
+     //EventLoop loop;
+      auto loop = std::make_shared<EventLoop>();
     Poller p;
     //从这里算是缓冲区又是一个模块的
     Socket Server;
     
     Server.CreateServerConnect(1314);
     int fd = Server.Get_fd();
-    Channel* lis_ser = new Channel(fd,&loop);
-    lis_ser->Set_Read_Callback(std::bind(Accpet,&loop,lis_ser));
+    Channel* lis_ser = new Channel(fd,loop.get());
+    lis_ser->Set_Read_Callback(std::bind(Accpet,loop.get(),lis_ser));
     lis_ser->Fd_Add_Read();
     while(1)
     {
@@ -88,7 +96,7 @@ int main()
         // {
         //     e->HanderEvent();
         // }
-        loop.Start();
+        loop->Start();
     }
     Server.Close();
     return 0;
