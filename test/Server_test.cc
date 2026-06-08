@@ -69,9 +69,12 @@ void Accpet(EventLoop* _poller,Channel* ch)
 }
 int main()
 {
-    Poller p;
-    Socket Server;
+    //下面这两个东西下是一个模块的
      EventLoop loop;
+    Poller p;
+    //从这里算是缓冲区又是一个模块的
+    Socket Server;
+    
     Server.CreateServerConnect(1314);
     int fd = Server.Get_fd();
     Channel* lis_ser = new Channel(fd,&loop);
