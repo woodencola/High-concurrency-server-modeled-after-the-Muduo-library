@@ -113,11 +113,3 @@ public:
         }
     }
 };
-void Channel::unpate()
-{
-    _poller->UpdateEvent(this);
-}
-void Channel::Remove()
-{
-    _poller->RemoveEvent(this);
-}

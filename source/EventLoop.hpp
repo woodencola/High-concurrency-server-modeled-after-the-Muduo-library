@@ -3,6 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <functional>
+#include <memory>
 #include <fcntl.h>
 #include <cstdint>
 #include <unistd.h>
@@ -16,12 +17,12 @@ class EventLoop
 
 private:
     using Func = std::function<void()>;
-    uint32_t _eventfd; // 用来当没有事件处理的时候退出epollwait的等待或者后面和timeid做定时器的
-    Channel *_event_channel;
+    std::thread::id _thread_id; // 判断当前任务是否处于同一个线程下
+    Poller _poller;
+    int _eventfd; // 用来当没有事件处理的时候退出epollwait的等待或者后面和timeid做定时器的
+    std::unique_ptr<Channel> _event_channel;
     std::vector<Func> _task_queue; // 不采用队列,后面直接拷贝,提高效率
     std::mutex _mutex;             // 锁任务队列,保证线程安全
-    std::thread::id _thread_id;    // 判断当前任务是否处于同一个线程下
-    Poller _poller;
 
 public:
     void RunAlltask()
@@ -37,9 +38,9 @@ public:
         }
         return;
     }
-    static uint32_t create_event_fd()
+    static int create_event_fd()
     {
-        uint32_t eventretfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        int eventretfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         if (eventretfd < 0)
         {
             ERR_LOG("eventfd not create");
@@ -77,19 +78,35 @@ public:
     }
 
 public:
-    EventLoop() : _thread_id(std::this_thread::get_id()), _eventfd(create_event_fd()), _event_channel(new Channel(_eventfd, this)) {}
+    EventLoop() : _thread_id(std::this_thread::get_id()), _eventfd(create_event_fd()), _event_channel(new Channel(_eventfd, this))
+    {
+        // 设置回调,开去读事件
+        _event_channel->Set_Read_Callback(std::bind(&EventLoop::Read_Event_fd, this));
+        _event_channel->Fd_Add_Read();
+    }
+    ~EventLoop()
+    {
+        if (_event_channel)
+        {
+            _event_channel->Remove();
+        }
+        close(_eventfd);
+    }
     void Start()
     {
-        // 1.事件监控
-        std::vector<Channel *> active;
-        _poller.Poll(&active);
-        // 就绪事件处理
-        for (auto &e : active)
+        while (true)
         {
-            e->HanderEvent();
+            // 1.事件监控
+            std::vector<Channel *> active;
+            _poller.Poll(&active);
+            // 就绪事件处理
+            for (auto &e : active)
+            {
+                e->HanderEvent();
+            }
+            // 处理所有事件
+            RunAlltask();
         }
-        // 处理所有事件
-        RunAlltask();
     }
     void RunInLoop(const Func &cb)
     {
@@ -107,8 +124,8 @@ public:
             std::unique_lock<std::mutex> guard(_mutex);
             _task_queue.push_back(cb);
         }
-        //此处可能出现,我的epoll当中没有任何事件就绪,从而变为阻塞了,为了解决这种情况,我们向这个eventfd当中写个数据,但我们
-        //并不关心这个数字具体多少,单纯为了触发读事件
+        // 此处可能出现,我的epoll当中没有任何事件就绪,从而变为阻塞了,为了解决这种情况,我们向这个eventfd当中写个数据,但我们
+        // 并不关心这个数字具体多少,单纯为了触发读事件
         Weak_Up_fd();
     }
     bool ThreadInLoop()
@@ -125,3 +142,11 @@ public:
         return _poller.RemoveEvent(ch);
     }
 };
+void Channel::unpate()
+{
+    _eventloop->UpdateEvent(this);
+}
+void Channel::Remove()
+{
+    _eventloop->RemoveEvent(this);
+}

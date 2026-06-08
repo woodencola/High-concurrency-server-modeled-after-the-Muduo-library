@@ -1,6 +1,7 @@
 #include<iostream>
 #include<string>
 #include<functional>
+#include"../source/EventLoop.hpp"
 #include"../source/Socket.hpp"
 #include"../source/Poller.hpp"
 #include"../source/Channel.hpp"
@@ -48,7 +49,7 @@ void Eevent(Channel* ch)
 {
     std::cout<<"i have a plan"<<std::endl;
 }
-void Accpet(Poller* _poller,Channel* ch)
+void Accpet(EventLoop* _poller,Channel* ch)
 {
     int fd = ch->Get_Fd();
     int newfd = accept(fd,nullptr,nullptr);
@@ -70,19 +71,15 @@ int main()
 {
     Poller p;
     Socket Server;
+     EventLoop loop;
     Server.CreateServerConnect(1314);
     int fd = Server.Get_fd();
-    Channel* lis_ser = new Channel(fd,&p);
-    lis_ser->Set_Read_Callback(std::bind(Accpet,&p,lis_ser));
+    Channel* lis_ser = new Channel(fd,&loop);
+    lis_ser->Set_Read_Callback(std::bind(Accpet,&loop,lis_ser));
     lis_ser->Fd_Add_Read();
     while(1)
     {
-        std::vector<Channel*> active;
-        p.Poll(&active);
-        for(auto& e:active)
-        {
-            e->HanderEvent();
-        }
+       loop.Start();
     }
     Server.Close();
     return 0;
