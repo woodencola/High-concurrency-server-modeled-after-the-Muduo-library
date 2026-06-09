@@ -91,6 +91,7 @@ namespace Buffer_Module
         // 写入数据
         void Write(void *data, uint64_t len)
         {
+            if(len==0) return;
             // 1.需要确保当前空间足够
             EnsureWriteSpaceSize(len);
             const char *d = (char *)data;
