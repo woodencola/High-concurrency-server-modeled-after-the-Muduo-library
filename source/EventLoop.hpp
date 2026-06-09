@@ -155,17 +155,17 @@ public:
 private:
     void set_time_task(uint64_t id, uint64_t time, const timeer_callback_t &task)
     {
-        auto it = _timers.find(id);
-        if (it != _timers.end())
-        {
-            auto old_ptr = it->second.lock();
-            if (old_ptr)
-            {
-                 old_ptr->Cancel();      
-                RemoveTaskFromWheel(old_ptr);
-            }
-            _timers.erase(it);
-        }
+        // auto it = _timers.find(id);
+        // if (it != _timers.end())
+        // {
+        //     auto old_ptr = it->second.lock();
+        //     if (old_ptr)
+        //     {
+        //          old_ptr->Cancel();      
+        //         RemoveTaskFromWheel(old_ptr);
+        //     }
+        //     _timers.erase(it);
+        // }
         time_task_ptr_t ptr = std::make_shared<time_task>(id, time, task);
         _timers[id] = ptr;
         ptr->set_release(std::bind(&time_task_wheel::remove_time_task, this, id));
@@ -213,7 +213,7 @@ private:
         if (ptr)
         { 
              ptr->Cancel();      
-            RemoveTaskFromWheel(ptr);   
+            //RemoveTaskFromWheel(ptr);   
         }   
         _timers.erase(it);
     }
