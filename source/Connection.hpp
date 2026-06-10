@@ -4,6 +4,7 @@
 #include "Buffer.hpp"
 #include "Channel.hpp"
 #include "any.hpp"
+#include"EventLoop.hpp"
 
 #include <iostream>
 #include <memory>
@@ -103,10 +104,30 @@ private:
     }
     void HanderClose()
     {
+        if (_Inbuffer.CurrentEnableReadSpaceSize() > 0)
+            {
+                if (_Msg_Cb)
+                    _Msg_Cb(shared_from_this(), &_Inbuffer);
+            }
+            ReleaseInloop();
+            return;
+    }
+    void HanderErr()
+    {
+        return HanderClose();
     }
     void HanderEvent()
     {
+        //1.刷新活跃度
+        if(Is_Enable_Time_del==true)
+        {
+            _loop->TimerFlush(_Timer_Id);
+        }
+        //2.触发用户的回调
+        if(_Event_Cb)
+        _Event_Cb();
     }
+    
     void HanderMsg()
     {
     }
@@ -130,6 +151,7 @@ public:
     Connection(int Conn_Id, int Sockfd, EventLoop *loop)
         : _Conn_Id(Conn_Id), _Sockfd(Sockfd), _loop(loop)
     {
+        _Timer_Id = _Conn_Id;
     }
     ~Connection() {}
     // 获取conn_id

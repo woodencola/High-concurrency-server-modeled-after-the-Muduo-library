@@ -395,3 +395,4 @@ void time_task_wheel::remove_time_task_loop(uint64_t id)
 {
     _loop.lock()->RunInLoop(std::bind(&time_task_wheel::remove_time_task, this, id));
 }
+void HanderEvent();
