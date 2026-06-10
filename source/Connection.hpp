@@ -4,7 +4,7 @@
 #include "Buffer.hpp"
 #include "Channel.hpp"
 #include "any.hpp"
-#include"EventLoop.hpp"
+#include "EventLoop.hpp"
 
 #include <iostream>
 #include <memory>
@@ -13,7 +13,8 @@ using namespace Buffer_Module;
 // 1.状态
 // 2.是否销毁
 // 3.eventloop
-class EventLoop;
+
+//,是否需要添加写事件,是由外部决定的
 typedef enum
 {
     DISCONNECTED, // 表示连接关闭
@@ -93,7 +94,7 @@ private:
         _Outbuffer.MoveReadPosition(ret);
         if (_Outbuffer.CurrentEnableReadSpaceSize() == 0)
         {
-            //输出缓冲区的可读数据为 0,关闭写事件,发送事件结束
+            // 输出缓冲区的可读数据为 0,关闭写事件,发送事件结束
             _Channel.Fd_Delete_Write();
             if (_Status == DISCONNECTING)
             {
@@ -105,12 +106,12 @@ private:
     void HanderClose()
     {
         if (_Inbuffer.CurrentEnableReadSpaceSize() > 0)
-            {
-                if (_Msg_Cb)
-                    _Msg_Cb(shared_from_this(), &_Inbuffer);
-            }
-            ReleaseInloop();
-            return;
+        {
+            if (_Msg_Cb)
+                _Msg_Cb(shared_from_this(), &_Inbuffer);
+        }
+        ReleaseInloop();
+        return;
     }
     void HanderErr()
     {
@@ -118,63 +119,129 @@ private:
     }
     void HanderEvent()
     {
-        //1.刷新活跃度
-        if(Is_Enable_Time_del==true)
+        // 1.刷新活跃度
+        if (Is_Enable_Time_del == true)
         {
             _loop->TimerFlush(_Timer_Id);
         }
-        //2.触发用户的回调
-        if(_Event_Cb)
-        _Event_Cb(shared_from_this());
+        // 2.触发用户的回调
+        if (_Event_Cb)
+            _Event_Cb(shared_from_this());
     }
-    
-    void HanderMsg()
-    {
-    }
+
+  
     void ReleaseInloop()
     {
         // 实际的释放接口
-        //判断状态是否是半关闭
-        if(_Status!=DISCONNECTING)
-        {
-             ERR_LOG("状态不对");
-            return;
-        }
-        //关闭事件监控
+        // 判断状态是否是半关闭
+        // if(_Status!=DISCONNECTING)
+        // {
+        //      ERR_LOG("状态不对");
+        //     return;
+        // }
+        // 设置状态
+        _Status = DISCONNECTED;
+        // 关闭事件监控
         _Channel.Remove();
-        //关闭套接字
+        // 关闭套接字
         _Socket.Close();
-        //触发用户的回调
-        if(_Close_Cb)
-        _Close_Cb(shared_from_this());
-        //触发服务器的回调,删除服务器内部的管理信息
-        if(_server_closed_callback)
-        _server_closed_callback(shared_from_this());
+        // 如果有定时任务要取消,否则会出现野指针访问的问题
+        if (_loop->hastimer(_Timer_Id))
+            DisableTimeoutDelInLoop();
+
+        // 触发用户的回调
+        if (_Close_Cb)
+            _Close_Cb(shared_from_this());
+        // 触发服务器的回调,删除服务器内部的管理信息
+        if (_server_closed_callback)
+            _server_closed_callback(shared_from_this());
     }
     void EstablishedInLoop()
     {
-        //1. 判断状态是否为CONNECTING
-        if(_Status!=CONNECTING)
+        // 1. 判断状态是否为CONNECTING
+        if (_Status != CONNECTING)
         {
             ERR_LOG("状态不对");
             return;
         }
-        //开启读监控
+        // 开启读监控
         _Channel.Fd_Add_Read();
-        //触发用户的读事件
-        if(_Connect_Cb)
-        _Connect_Cb(shared_from_this());
+        // 触发用户的读事件
+        if (_Connect_Cb)
+
+            _Connect_Cb(shared_from_this());
     }
-    void SendInLoop(char *data, ssize_t len);
-    void ShutDownInLoop();
-    void EnableTimeoutDelInLoop(int sec);
-    void DisableTimeoutDelInLoop();
+    // 将数据放到输出缓冲区,不是实际的发送
+    void SendInLoop(char *data, ssize_t len)
+    {
+        // 连接关闭无法释放
+        if (_Status == DISCONNECTED)
+            return;
+        _Outbuffer.WriteAndAdd(data, len);
+        if (_Channel.Fd_Is_Write() == false)
+        {
+            _Channel.Fd_Add_Write();
+        }
+    }
+    void ShutDownInLoop()
+    {
+        // 设置状态
+        _Status = DISCONNECTING;
+        if (_Inbuffer.CurrentEnableReadSpaceSize() > 0)
+        {
+            // 有数据处理一下
+            if (_Msg_Cb)
+                _Msg_Cb(shared_from_this(), &_Inbuffer);
+        }
+        if (_Outbuffer.CurrentEnableReadSpaceSize() > 0)
+        {
+            // 处理号的数据发送一下
+            if (_Channel.Fd_Is_Write() == false)
+                _Channel.Fd_Add_Write();
+        }
+
+        //写入数据失败关闭,或者连接断开
+        if (_Outbuffer.CurrentEnableReadSpaceSize() == 0)
+        {
+            ReleaseInloop();
+        }
+    }
+    void EnableTimeoutDelInLoop(int sec)
+    {
+        //设置可销毁
+        Is_Enable_Time_del = true;
+        //如果存在就不设置了
+        if(_loop->hastimer(_Timer_Id))
+        {
+            _loop->TimerFlush(_Timer_Id);
+        }
+        //不存在就设置一下
+        _loop->TimerAdd(_Timer_Id,sec,std::bind(&Connection::ReleaseInloop,this));
+
+        
+    }
+    void DisableTimeoutDelInLoop()
+    {
+        //设置不可以销毁
+        Is_Enable_Time_del = false;
+         if(_loop->hastimer(_Timer_Id))
+        {
+            _loop->TimeRemove(_Timer_Id);
+        }
+    }
     void ChangeProtocalInLoop(const Any &Context,
                               const Conn_Connect_Callback &Read_Cb,
                               const Conn_Write_Callback &Write_Cb,
                               const Conn_Close_Callback &Close_Cb,
                               const Conn_Event_Callback &Event_Cb,
-                              const Msg_Callback &Msg_Cb);
+                              const Msg_Callback &Msg_Cb)
+                              {
+                                _Context = Context;
+                                _Connect_Cb = Read_Cb;
+                                _Write_Cb = Write_Cb;
+                                _Close_Cb = Close_Cb;
+                                _Msg_Cb = Msg_Cb;
+                              }
 
 public:
     Connection(int Conn_Id, int Sockfd, EventLoop *loop)

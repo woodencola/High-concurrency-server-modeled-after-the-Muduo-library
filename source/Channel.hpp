@@ -35,11 +35,13 @@ public:
     {
         return _event;
     }
+     // 文件描述符是否可读
     bool Fd_Is_Read()
     {
         return _event & EPOLLIN;
         
-    } // 文件描述符是否可读
+    }
+    // 文件描述符是否可写
     bool Fd_Is_Write()
     {
         return _event & EPOLLOUT;
