@@ -125,7 +125,7 @@ private:
         }
         //2.触发用户的回调
         if(_Event_Cb)
-        _Event_Cb();
+        _Event_Cb(shared_from_this());
     }
     
     void HanderMsg()
@@ -134,8 +134,37 @@ private:
     void ReleaseInloop()
     {
         // 实际的释放接口
+        //判断状态是否是半关闭
+        if(_Status!=DISCONNECTING)
+        {
+             ERR_LOG("状态不对");
+            return;
+        }
+        //关闭事件监控
+        _Channel.Remove();
+        //关闭套接字
+        _Socket.Close();
+        //触发用户的回调
+        if(_Close_Cb)
+        _Close_Cb(shared_from_this());
+        //触发服务器的回调,删除服务器内部的管理信息
+        if(_server_closed_callback)
+        _server_closed_callback(shared_from_this());
     }
-    void EstablishedInLoop();
+    void EstablishedInLoop()
+    {
+        //1. 判断状态是否为CONNECTING
+        if(_Status!=CONNECTING)
+        {
+            ERR_LOG("状态不对");
+            return;
+        }
+        //开启读监控
+        _Channel.Fd_Add_Read();
+        //触发用户的读事件
+        if(_Connect_Cb)
+        _Connect_Cb(shared_from_this());
+    }
     void SendInLoop(char *data, ssize_t len);
     void ShutDownInLoop();
     void EnableTimeoutDelInLoop(int sec);
