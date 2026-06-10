@@ -1,6 +1,7 @@
 #include<iostream>
 #include<string>
 #include<functional>
+#include<vector>
 #include<unordered_map>
 #include "../source/Acceptor.hpp"
 #include"../source/Connection.hpp"
@@ -9,7 +10,11 @@
 #include"../source/Poller.hpp"
 #include"../source/Channel.hpp"
 #include"../source/Log.hpp"
-  auto loop = std::make_shared<EventLoop>();
+#include"../source/LoopThread.hpp"  
+auto loop = std::make_shared<EventLoop>();
+
+std::vector<LoopThread> pool(2);
+int next_id = 0;
 // void Close(Channel* ch,EventLoop* _loop)
 // {
 //     // std::cout<< "close"<<ch->Get_Fd()<<std::endl;
@@ -88,7 +93,7 @@ void Accpet(EventLoop* _poller,Channel* ch)
         return;
     }
 
-     
+    // next_id =  (next_id+1)%10;
     ConnPtr io = std::make_shared<Connection>(conn_id,newfd,_poller);
      mp[conn_id] = io;
     conn_id++;
@@ -106,14 +111,15 @@ void Accpet(EventLoop* _poller,Channel* ch)
     // io->Set_Write_Callback(std::bind(Write,io,_poller));
     // _poller->TimerAdd(newfd,10,std::bind(Close,io,_poller));
     // io->Fd_Add_Read();
+    DBG_LOG("--------------------------------------------");
 
 }
 void Accpet1(int newfd)
 {
    
 
-    
-    ConnPtr io = std::make_shared<Connection>(conn_id,newfd,loop.get());
+    next_id =  (next_id+1)%2;
+    ConnPtr io = std::make_shared<Connection>(conn_id,newfd,pool[next_id].Get_EventLoop());
      mp[conn_id] = io;
     conn_id++;
     io->Set_Msg_Callback(std::bind(Connect_hander,std::placeholders::_1,std::placeholders::_2));
@@ -130,7 +136,7 @@ void Accpet1(int newfd)
     // io->Set_Write_Callback(std::bind(Write,io,_poller));
     // _poller->TimerAdd(newfd,10,std::bind(Close,io,_poller));
     // io->Fd_Add_Read();
-
+     DBG_LOG("--------------------------------------------");
 }
 int main()
 {

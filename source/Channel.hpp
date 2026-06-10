@@ -24,9 +24,7 @@ public:
     Channel() =default;
    // Channel(int fd,Poller* poller):_fd(fd),_poller(poller){}
     Channel(int fd,EventLoop* EventLoop):_fd(fd),_eventloop(EventLoop){}
-    ~Channel(){
-         close(_fd);
-    }
+  
     int Get_Fd()
     {
         return _fd;

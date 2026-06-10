@@ -1,6 +1,7 @@
 #pragma once
 #include<cstdio>
 #include<ctime>
+#include<pthread.h>
 
 #define INF 0
 #define DBG 1
@@ -12,7 +13,7 @@
   struct tm* time = localtime(&t);\
   char formattime[32] ={0};\
   strftime(formattime,31,"%H:%M:%S",time);\
-  fprintf(stdout,"[%s]""[%s:%d]:" format "\n",formattime,__FILE__,__LINE__,##__VA_ARGS__);  \
+  fprintf(stdout,"[thread id is %lu:%s]""[%s:%d]:" format "\n",(unsigned long)pthread_self(),formattime,__FILE__,__LINE__,##__VA_ARGS__);  \
 } while (0);
 
 #define INF_LOG(format,...) LOG(INF,format,##__VA_ARGS__)

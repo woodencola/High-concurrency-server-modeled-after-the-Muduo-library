@@ -17,14 +17,14 @@ private:
     // 这个实例化对象,我们放到,线程的入口函数内部去进行实现
     // 为了防止出现,在eventloop创建到线程id分配这段真空期出现有事件触发去获取这个
     // thread_id,会被误认为在同一个地方
-    EventLoop *_loop;
+   std::shared_ptr< EventLoop> _loop;
 
     void Thread_Entry()
     {
-        EventLoop loop;
+       auto loop = std::make_shared<EventLoop>();
         {
             std::unique_lock<std::mutex> guard(_mutex);
-            _loop = &loop;
+            _loop = loop;
             _cond.notify_all();
         }
         _loop->Start();
@@ -40,10 +40,10 @@ public:
             std::unique_lock<std::mutex> guard(_mutex);
             _cond.wait(guard, [&]() -> bool
                        { return _loop != nullptr; });
-            loop = _loop;
+            loop = _loop.get();
             
         }
-        return _loop;
+        return loop;
     }
     ~LoopThread() {}
 };
