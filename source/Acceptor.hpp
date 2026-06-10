@@ -14,12 +14,13 @@ private:
     Acceptor_Callback_t _Acceptor_cb;
     int CreaterServer(uint16_t port)
     {
-        int ret = _socket.CreateServerConnect(port, "0.0.0.0", true);
+        int ret = _socket.CreateServerConnect(port);
         assert(ret == true);
         return _socket.Get_fd();
     }
     void HanderRead()
     {
+          DBG_LOG("Acceptor::HanderRead called");
         int newfd = _socket.Accept();
         if (newfd < 0)
         {

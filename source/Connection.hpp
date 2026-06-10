@@ -69,6 +69,7 @@ private:
             ShutDownInLoop();
             return;
         }
+        //写入到输入缓冲区当中
         _Inbuffer.WriteAndAdd(buffer, ret);
 
         if (_Inbuffer.CurrentEnableReadSpaceSize() > 0)

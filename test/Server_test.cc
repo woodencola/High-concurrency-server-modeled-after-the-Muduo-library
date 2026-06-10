@@ -2,12 +2,14 @@
 #include<string>
 #include<functional>
 #include<unordered_map>
+#include "../source/Acceptor.hpp"
 #include"../source/Connection.hpp"
 #include"../source/EventLoop.hpp"
 #include"../source/Socket.hpp"
 #include"../source/Poller.hpp"
 #include"../source/Channel.hpp"
 #include"../source/Log.hpp"
+  auto loop = std::make_shared<EventLoop>();
 // void Close(Channel* ch,EventLoop* _loop)
 // {
 //     // std::cout<< "close"<<ch->Get_Fd()<<std::endl;
@@ -63,7 +65,7 @@ void Connect_hander(const ConnPtr& _con,Buffer* _buffer)
      _buffer->MoveReadPosition(_buffer->CurrentEnableReadSpaceSize());
      std::string msg = "我爱你111";
      _con->Send(msg.c_str(),msg.size());
-     _con->Shutdown();
+    // _con->Shutdown();
 }
 
 int conn_id  =1;
@@ -106,20 +108,48 @@ void Accpet(EventLoop* _poller,Channel* ch)
     // io->Fd_Add_Read();
 
 }
+void Accpet1(int newfd)
+{
+   
+
+    
+    ConnPtr io = std::make_shared<Connection>(conn_id,newfd,loop.get());
+     mp[conn_id] = io;
+    conn_id++;
+    io->Set_Msg_Callback(std::bind(Connect_hander,std::placeholders::_1,std::placeholders::_2));
+    io->Set_Conn_Connect_Callback(ON_hander);
+    io->Set_Conn_Close_Callback(CLose_hander);
+    io->EnableTimeoutDel(10);
+    io->Established();
+   
+    // Channel* io =  new Channel(newfd,_poller);
+    // io->Set_close_Callback(std::bind(Close,io,_poller));
+    // io->Set_Err_Callback(std::bind(ERR_callbakc,io,_poller));
+    // io->Set_Event_Callback(std::bind(Eevent,io,_poller));
+    // io->Set_Read_Callback(std::bind(Read,io,_poller));
+    // io->Set_Write_Callback(std::bind(Write,io,_poller));
+    // _poller->TimerAdd(newfd,10,std::bind(Close,io,_poller));
+    // io->Fd_Add_Read();
+
+}
 int main()
 {
     //下面这两个东西下是一个模块的
      //EventLoop loop;
-      auto loop = std::make_shared<EventLoop>();
+    
     Poller p;
     //从这里算是缓冲区又是一个模块的
     Socket Server;
     
-    Server.CreateServerConnect(1315);
-    int fd = Server.Get_fd();
-    Channel* lis_ser = new Channel(fd,loop.get());
-    lis_ser->Set_Read_Callback(std::bind(Accpet,loop.get(),lis_ser));
-    lis_ser->Fd_Add_Read();
+    // Server.CreateServerConnect(1315);
+    // int fd = Server.Get_fd();
+    // Channel* lis_ser = new Channel(fd,loop.get());
+    // lis_ser->Set_Read_Callback(std::bind(Accpet,loop.get(),lis_ser));
+    // lis_ser->Fd_Add_Read();
+
+    Acceptor a(loop.get(),1314);
+    a.Set_Acceptor_Callback(std::bind(Accpet1,std::placeholders::_1));
+    a.listen();
     while(1)
     {
         // std::vector<Channel*> active;

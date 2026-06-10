@@ -6,7 +6,7 @@
 int main()
 {
     Socket client;
-    client.CreateClientConnect(1315,"127.0.0.1");
+    client.CreateClientConnect(1314,"127.0.0.1");
     std::string sendmsg = "mutou666";
     int a = 5;
     while (a--)
