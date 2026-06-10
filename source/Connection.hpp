@@ -341,20 +341,26 @@ public:
 
     void Set_Conn_Connect_Callback(const Conn_Connect_Callback &cb)
     {
+        _Connect_Cb = cb;
     }
     void Set_Conn_Write_Callback(const Conn_Write_Callback &cb)
     {
+        _Write_Cb = cb;
     }
     void Set_Conn_Close_Callback(const Conn_Close_Callback &cb)
     {
+        _Close_Cb = cb;
     }
     void Set_Conn_Event_Callback(const Conn_Event_Callback &cb)
     {
+        _Event_Cb = cb;
     }
     void Set_Msg_Callback(const Msg_Callback &cb)
     {
+        _Msg_Cb = cb;
     }
     void Set_Server_Callback(const Conn_Close_Callback &cb)
     {
+        _server_closed_callback = cb;
     }
 };
