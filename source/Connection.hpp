@@ -245,9 +245,35 @@ private:
 
 public:
     Connection(int Conn_Id, int Sockfd, EventLoop *loop)
-        : _Conn_Id(Conn_Id), _Sockfd(Sockfd), _loop(loop)
+        : _Conn_Id(Conn_Id), _Sockfd(Sockfd), _loop(loop),Is_Enable_Time_del(false),_Socket(Sockfd),_Channel(_Sockfd,loop),
+        _Status(CONNECTING)
     {
+    //     int _Conn_Id;  // 连接的唯一id ,方面后面查找管理
+    // int _Timer_Id; // 定时器id,我们需要添加定时器,需要唯一标识,这里用Conn id的值即可,因为只需要保证唯一性
+    // int _Sockfd;
+    // CONN_STATUS _Status;     // 当前连接的状态
+    // bool Is_Enable_Time_del; // 是否启用连接超时销毁
+    // Socket _Socket;          // 套接字管理
+    // Channel _Channel;        // fd事件管理
+    // Buffer _Inbuffer;        // 输入缓冲区
+    // Buffer _Outbuffer;       // 输出缓冲区
+    // Any _Context;            // 协议切换,上下文数据处理
+    // EventLoop *_loop;
         _Timer_Id = _Conn_Id;
+    //      Conn_Connect_Callback _Connect_Cb;
+    // Conn_Write_Callback _Write_Cb;
+    // Conn_Close_Callback _Close_Cb;
+    // Conn_Event_Callback _Event_Cb;
+    // /*组件内的连接关闭回调-组件内设置的，因为服务器组件内会把所有的连接管理起来，⼀旦某个连接要关闭*/
+    // /*就应该从管理的地方移除掉自己的信息*/
+    // Conn_Close_Callback _server_closed_callback;
+    // Msg_Callback _Msg_Cb;
+      _Channel.Set_close_Callback(std::bind(&Connection::HanderClose,this));
+      _Channel.Set_Err_Callback(std::bind(&Connection::HanderErr,this));
+      _Channel.Set_Event_Callback(std::bind(&Connection::HanderEvent,this));
+      _Channel.Set_Read_Callback(std::bind(&Connection::HanderRead,this));
+      _Channel.Set_Write_Callback(std::bind(&Connection::HanderWrite,this));
+
     }
     ~Connection() {}
     // 获取conn_id
@@ -289,6 +315,9 @@ public:
     {
     }
     void Set_Msg_Callback(const Msg_Callback &cb)
+    {
+    }
+    void Set_Server_Callback(const Conn_Close_Callback &cb)
     {
     }
 };
