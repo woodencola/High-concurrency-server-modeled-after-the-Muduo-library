@@ -350,6 +350,10 @@ public:
         // 判断当前线程是否处于和_eventloop一个线程的
         return _thread_id == std::this_thread::get_id();
     }
+    void AssertInloop()
+    {
+         assert(_thread_id== std::this_thread::get_id());
+    }
     void UpdateEvent(Channel *ch) // 添加或者修改一个fd or channel
     {
         return _poller.UpdateEvent(ch);
@@ -395,4 +399,3 @@ void time_task_wheel::remove_time_task_loop(uint64_t id)
 {
     _loop.lock()->RunInLoop(std::bind(&time_task_wheel::remove_time_task, this, id));
 }
-void HanderEvent();

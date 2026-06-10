@@ -277,30 +277,67 @@ public:
     }
     ~Connection() {}
     // 获取conn_id
-    int Get_Id();
+    int Get_Id()
+    {
+        return _Conn_Id;
+    }
     // 获取sockfd
-    int Get_Fd();
+    int Get_Fd()
+    {
+        return _Sockfd;
+    }
     // 判断当前连接是否处于connect状态
-    bool Connected();
+    bool Connected()
+    {
+        return _Status==CONNECTED;
+    }
     // 获取上下文
-    Any *Get_Context();
+    Any *Get_Context()
+    {
+        return &_Context;
+    }
     // 设置上下文
-    void Set_Context(const Any &context);
+    void Set_Context(const Any &context)
+    {
+        _Context = context;
+    }
     // 发送数据
-    void Send(char *data, ssize_t len);
+    void Send(char *data, ssize_t len){
+        _loop->RunInLoop(std::bind(&Connection::SendInLoop,this,data,len));
+    }
     // 开启超时销毁
-    void EnableTimeoutDel(int sec);
+    void EnableTimeoutDel(int sec)
+    {
+        _loop->RunInLoop(std::bind(&Connection::EnableTimeoutDelInLoop,this,sec));
+    }
     // 关闭超时销毁
-    void DisableTimeoutDel();
-    void Shutdown();    // 给外部提供的关闭连接的接口,在这里并非真正上的关闭,仍然需要关心输入缓冲区的数据释放处理,发送缓冲区的数据是否还要残留需要发送
-    void Established(); // 当连接建立完成,我们需要给Channel ,设置各种回调,调用connect_callback,该函数也需要放到Eventloop当中实现
+    void DisableTimeoutDel()
+    {
+        _loop->RunInLoop(std::bind(&Connection::DisableTimeoutDel,this));
+    }
+        // 给外部提供的关闭连接的接口,在这里并非真正上的关闭,仍然需要关心输入缓冲区的数据释放处理,发送缓冲区的数据是否还要残留需要发送
+
+    void Shutdown()
+    {
+        _loop->RunInLoop(std::bind(&Connection::ShutDownInLoop,this));
+    }
+    // 当连接建立完成,我们需要给Channel ,设置各种回调,调用connect_callback,该函数也需要放到Eventloop当中实现
+    void Established()
+    {
+     _loop->RunInLoop(std::bind(&Connection::EstablishedInLoop,this));   
+    } 
     // 切换协议
+    //这个协议只能在Eventloop当中立即执行,不能添加进任务队列
     void ChangeProtocal(const Any &Context,
                         const Conn_Connect_Callback &Connect_Cb,
                         const Conn_Write_Callback &Write_Cb,
                         const Conn_Close_Callback &Close_Cb,
                         const Conn_Event_Callback &Event_Cb,
-                        const Msg_Callback &Msg_Cb);
+                        const Msg_Callback &Msg_Cb)
+                        {
+                            _loop->AssertInloop();
+                            _loop->RunInLoop(std::bind(&Connection::ChangeProtocalInLoop,this,Context,Connect_Cb,Write_Cb,Close_Cb,Event_Cb,Msg_Cb));
+                        }
 
     void Set_Conn_Connect_Callback(const Conn_Connect_Callback &cb)
     {
