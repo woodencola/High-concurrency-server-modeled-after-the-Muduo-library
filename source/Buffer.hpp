@@ -89,7 +89,7 @@ namespace Buffer_Module
 
     private:
         // 写入数据
-        void Write(void *data, uint64_t len)
+        void Write(const void *data, uint64_t len)
         {
             if(len==0) return;
             // 1.需要确保当前空间足够
@@ -162,7 +162,7 @@ namespace Buffer_Module
             Read(buffer, len);
             MoveReadPosition(len);
         }
-        void WriteAndAdd(void *data, uint64_t len)
+        void WriteAndAdd(const void *data, uint64_t len)
         {
             Write(data, len);
             MoveWritePosition(len);

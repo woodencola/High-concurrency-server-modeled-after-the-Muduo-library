@@ -147,7 +147,7 @@ public:
     {
         if(_sockfd==-1)
         {
-            ERR_LOG("sockfd not exist");
+           // ERR_LOG("sockfd not exist");
             return;
         }
         close(_sockfd);
@@ -194,7 +194,8 @@ public:
     void SetAddressReuse()
     {
         int val = 1;
-        setsockopt(_sockfd,SOL_SOCKET,SO_REUSEADDR|SO_REUSEPORT,&val,sizeof(val));
+        setsockopt(_sockfd,SOL_SOCKET,SO_REUSEADDR,&val,sizeof(val));
+        setsockopt(_sockfd,SOL_SOCKET,SO_REUSEPORT,&val,sizeof(val));
     }
     // 设置为非阻塞
     void SetNoBlock()

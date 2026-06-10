@@ -22,9 +22,10 @@ typedef enum
     CONNECTED,    // 连接成功,设置完成,可以通信
     DISCONNECTING // 表示连接准备关闭,仍然需要关心是否,输入缓冲区的数据释放处理,发送缓冲区的数据是否还要残留需要发送
 } CONN_STATUS;
+class Connection;
+using ConnPtr = std::shared_ptr<Connection>;
 class Connection : public std::enable_shared_from_this<Connection>
 {
-    using ConnPtr = std::shared_ptr<Connection>;
 
 private:
     int _Conn_Id;  // 连接的唯一id ,方面后面查找管理
@@ -64,7 +65,7 @@ private:
         // 将数据放到inbuffer当中,调用读事件回调
         if (ret < 0)
         {
-            ERR_LOG("connect error");
+
             ShutDownInLoop();
             return;
         }
@@ -129,7 +130,6 @@ private:
             _Event_Cb(shared_from_this());
     }
 
-  
     void ReleaseInloop()
     {
         // 实际的释放接口
@@ -172,12 +172,12 @@ private:
             _Connect_Cb(shared_from_this());
     }
     // 将数据放到输出缓冲区,不是实际的发送
-    void SendInLoop(char *data, ssize_t len)
+    void SendInLoop(Buffer _b)
     {
         // 连接关闭无法释放
         if (_Status == DISCONNECTED)
             return;
-        _Outbuffer.WriteAndAdd(data, len);
+        _Outbuffer.WriteAsBufferAndAdd(_b);
         if (_Channel.Fd_Is_Write() == false)
         {
             _Channel.Fd_Add_Write();
@@ -200,7 +200,7 @@ private:
                 _Channel.Fd_Add_Write();
         }
 
-        //写入数据失败关闭,或者连接断开
+        // 写入数据失败关闭,或者连接断开
         if (_Outbuffer.CurrentEnableReadSpaceSize() == 0)
         {
             ReleaseInloop();
@@ -208,23 +208,21 @@ private:
     }
     void EnableTimeoutDelInLoop(int sec)
     {
-        //设置可销毁
+        // 设置可销毁
         Is_Enable_Time_del = true;
-        //如果存在就不设置了
-        if(_loop->hastimer(_Timer_Id))
+        // 如果存在就不设置了
+        if (_loop->hastimer(_Timer_Id))
         {
             _loop->TimerFlush(_Timer_Id);
         }
-        //不存在就设置一下
-        _loop->TimerAdd(_Timer_Id,sec,std::bind(&Connection::ReleaseInloop,this));
-
-        
+        // 不存在就设置一下
+        _loop->TimerAdd(_Timer_Id, sec, std::bind(&Connection::ReleaseInloop, this));
     }
     void DisableTimeoutDelInLoop()
     {
-        //设置不可以销毁
+        // 设置不可以销毁
         Is_Enable_Time_del = false;
-         if(_loop->hastimer(_Timer_Id))
+        if (_loop->hastimer(_Timer_Id))
         {
             _loop->TimeRemove(_Timer_Id);
         }
@@ -235,47 +233,53 @@ private:
                               const Conn_Close_Callback &Close_Cb,
                               const Conn_Event_Callback &Event_Cb,
                               const Msg_Callback &Msg_Cb)
-                              {
-                                _Context = Context;
-                                _Connect_Cb = Read_Cb;
-                                _Write_Cb = Write_Cb;
-                                _Close_Cb = Close_Cb;
-                                _Msg_Cb = Msg_Cb;
-                              }
+    {
+        _Context = Context;
+        _Connect_Cb = Read_Cb;
+        _Write_Cb = Write_Cb;
+        _Close_Cb = Close_Cb;
+        _Msg_Cb = Msg_Cb;
+    }
 
 public:
     Connection(int Conn_Id, int Sockfd, EventLoop *loop)
-        : _Conn_Id(Conn_Id), _Sockfd(Sockfd), _loop(loop),Is_Enable_Time_del(false),_Socket(Sockfd),_Channel(_Sockfd,loop),
-        _Status(CONNECTING)
+        : _Conn_Id(Conn_Id), _Sockfd(Sockfd), _loop(loop), Is_Enable_Time_del(false), _Socket(Sockfd), _Channel(_Sockfd, loop),
+          _Status(CONNECTING)
     {
-    //     int _Conn_Id;  // 连接的唯一id ,方面后面查找管理
-    // int _Timer_Id; // 定时器id,我们需要添加定时器,需要唯一标识,这里用Conn id的值即可,因为只需要保证唯一性
-    // int _Sockfd;
-    // CONN_STATUS _Status;     // 当前连接的状态
-    // bool Is_Enable_Time_del; // 是否启用连接超时销毁
-    // Socket _Socket;          // 套接字管理
-    // Channel _Channel;        // fd事件管理
-    // Buffer _Inbuffer;        // 输入缓冲区
-    // Buffer _Outbuffer;       // 输出缓冲区
-    // Any _Context;            // 协议切换,上下文数据处理
-    // EventLoop *_loop;
+        //     int _Conn_Id;  // 连接的唯一id ,方面后面查找管理
+        // int _Timer_Id; // 定时器id,我们需要添加定时器,需要唯一标识,这里用Conn id的值即可,因为只需要保证唯一性
+        // int _Sockfd;
+        // CONN_STATUS _Status;     // 当前连接的状态
+        // bool Is_Enable_Time_del; // 是否启用连接超时销毁
+        // Socket _Socket;          // 套接字管理
+        // Channel _Channel;        // fd事件管理
+        // Buffer _Inbuffer;        // 输入缓冲区
+        // Buffer _Outbuffer;       // 输出缓冲区
+        // Any _Context;            // 协议切换,上下文数据处理
+        // EventLoop *_loop;
         _Timer_Id = _Conn_Id;
-    //      Conn_Connect_Callback _Connect_Cb;
-    // Conn_Write_Callback _Write_Cb;
-    // Conn_Close_Callback _Close_Cb;
-    // Conn_Event_Callback _Event_Cb;
-    // /*组件内的连接关闭回调-组件内设置的，因为服务器组件内会把所有的连接管理起来，⼀旦某个连接要关闭*/
-    // /*就应该从管理的地方移除掉自己的信息*/
-    // Conn_Close_Callback _server_closed_callback;
-    // Msg_Callback _Msg_Cb;
-      _Channel.Set_close_Callback(std::bind(&Connection::HanderClose,this));
-      _Channel.Set_Err_Callback(std::bind(&Connection::HanderErr,this));
-      _Channel.Set_Event_Callback(std::bind(&Connection::HanderEvent,this));
-      _Channel.Set_Read_Callback(std::bind(&Connection::HanderRead,this));
-      _Channel.Set_Write_Callback(std::bind(&Connection::HanderWrite,this));
-
+        //      Conn_Connect_Callback _Connect_Cb;
+        // Conn_Write_Callback _Write_Cb;
+        // Conn_Close_Callback _Close_Cb;
+        // Conn_Event_Callback _Event_Cb;
+        // /*组件内的连接关闭回调-组件内设置的，因为服务器组件内会把所有的连接管理起来，⼀旦某个连接要关闭*/
+        // /*就应该从管理的地方移除掉自己的信息*/
+        // Conn_Close_Callback _server_closed_callback;
+        // Msg_Callback _Msg_Cb;
+        _Channel.Set_close_Callback(std::bind(&Connection::HanderClose, this));
+        _Channel.Set_Err_Callback(std::bind(&Connection::HanderErr, this));
+        _Channel.Set_Event_Callback(std::bind(&Connection::HanderEvent, this));
+        _Channel.Set_Read_Callback(std::bind(&Connection::HanderRead, this));
+        _Channel.Set_Write_Callback(std::bind(&Connection::HanderWrite, this));
     }
-    ~Connection() {}
+    ~Connection()
+    {
+        // if (Is_Enable_Time_del && _loop && _loop->hastimer(_Timer_Id))
+        // {
+        //     _loop->RunInLoop(std::bind(&EventLoop::TimeRemove, _loop, _Timer_Id));
+        // }
+        DBG_LOG("clinet down %p", this);
+    }
     // 获取conn_id
     int Get_Id()
     {
@@ -287,9 +291,10 @@ public:
         return _Sockfd;
     }
     // 判断当前连接是否处于connect状态
+
     bool Connected()
     {
-        return _Status==CONNECTED;
+        return _Status == CONNECTED;
     }
     // 获取上下文
     Any *Get_Context()
@@ -302,47 +307,51 @@ public:
         _Context = context;
     }
     // 发送数据
-    void Send(char *data, ssize_t len){
-        _loop->RunInLoop(std::bind(&Connection::SendInLoop,this,data,len));
+    void Send(const char *data, ssize_t len)
+    {
+        Buffer _b;
+        _b.WriteAndAdd(data, len);
+        _loop->RunInLoop(std::bind(&Connection::SendInLoop, this, _b));
     }
     // 开启超时销毁
     void EnableTimeoutDel(int sec)
     {
-        _loop->RunInLoop(std::bind(&Connection::EnableTimeoutDelInLoop,this,sec));
+        _loop->RunInLoop(std::bind(&Connection::EnableTimeoutDelInLoop, this, sec));
     }
     // 关闭超时销毁
     void DisableTimeoutDel()
     {
-        _loop->RunInLoop(std::bind(&Connection::DisableTimeoutDel,this));
+        _loop->RunInLoop(std::bind(&Connection::DisableTimeoutDel, this));
     }
-        // 给外部提供的关闭连接的接口,在这里并非真正上的关闭,仍然需要关心输入缓冲区的数据释放处理,发送缓冲区的数据是否还要残留需要发送
+    // 给外部提供的关闭连接的接口,在这里并非真正上的关闭,仍然需要关心输入缓冲区的数据释放处理,发送缓冲区的数据是否还要残留需要发送
 
     void Shutdown()
     {
-        _loop->RunInLoop(std::bind(&Connection::ShutDownInLoop,this));
+        _loop->RunInLoop(std::bind(&Connection::ShutDownInLoop, this));
     }
     // 当连接建立完成,我们需要给Channel ,设置各种回调,调用connect_callback,该函数也需要放到Eventloop当中实现
     void Established()
     {
-     _loop->RunInLoop(std::bind(&Connection::EstablishedInLoop,this));   
-    } 
+        _loop->RunInLoop(std::bind(&Connection::EstablishedInLoop, this));
+    }
     // 切换协议
-    //这个协议只能在Eventloop当中立即执行,不能添加进任务队列
+    // 这个协议只能在Eventloop当中立即执行,不能添加进任务队列
     void ChangeProtocal(const Any &Context,
                         const Conn_Connect_Callback &Connect_Cb,
                         const Conn_Write_Callback &Write_Cb,
                         const Conn_Close_Callback &Close_Cb,
                         const Conn_Event_Callback &Event_Cb,
                         const Msg_Callback &Msg_Cb)
-                        {
-                            _loop->AssertInloop();
-                            _loop->RunInLoop(std::bind(&Connection::ChangeProtocalInLoop,this,Context,Connect_Cb,Write_Cb,Close_Cb,Event_Cb,Msg_Cb));
-                        }
+    {
+        _loop->AssertInloop();
+        _loop->RunInLoop(std::bind(&Connection::ChangeProtocalInLoop, this, Context, Connect_Cb, Write_Cb, Close_Cb, Event_Cb, Msg_Cb));
+    }
 
     void Set_Conn_Connect_Callback(const Conn_Connect_Callback &cb)
     {
         _Connect_Cb = cb;
     }
+    //(以废弃)
     void Set_Conn_Write_Callback(const Conn_Write_Callback &cb)
     {
         _Write_Cb = cb;
