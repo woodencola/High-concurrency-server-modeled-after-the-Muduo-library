@@ -85,6 +85,11 @@ void ON_hander(const ConnPtr& _con)
 {
     DBG_LOG("new connection %p",_con.get());
 }
+void CLose_hander1(const ConnPtr&_con)
+{
+   DBG_LOG("client %p",_con.get());
+}
+
 void Accpet(EventLoop* _poller,Channel* ch)
 {
     int fd = ch->Get_Fd();
@@ -127,6 +132,7 @@ void Accpet1(int newfd)
     io->Set_Msg_Callback(std::bind(Connect_hander,std::placeholders::_1,std::placeholders::_2));
     io->Set_Conn_Connect_Callback(ON_hander);
     io->Set_Server_Callback(CLose_hander);
+    io->Set_Conn_Close_Callback(CLose_hander1);
     io->EnableTimeoutDel(10);
     io->Established();
    

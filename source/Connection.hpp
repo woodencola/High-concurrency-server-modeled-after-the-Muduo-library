@@ -279,7 +279,7 @@ public:
         // {
         //     _loop->RunInLoop(std::bind(&EventLoop::TimeRemove, _loop, _Timer_Id));
         // }
-        DBG_LOG("clinet down %p", this);
+       // DBG_LOG("clinet down %p", this);
     }
     // 获取conn_id
     int Get_Id()

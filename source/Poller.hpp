@@ -23,7 +23,7 @@ private:
         auto it = _channels.find(fd);
         if (it == _channels.end())
         {
-            ERR_LOG("fd not is exist in _channels");
+          //  ERR_LOG("fd not is exist in _channels");
             return false;
         }
         return true;

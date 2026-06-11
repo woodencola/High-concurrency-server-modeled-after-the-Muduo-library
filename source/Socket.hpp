@@ -163,6 +163,7 @@ public:
         }
         if(is_block)
         SetNoBlock();
+        SetAddressReuse();
         if(Bind(port,ip)==false)
         {
             return false;
@@ -172,7 +173,7 @@ public:
             return false;   
         }
         
-        SetAddressReuse();
+        
         return true;
     }
     // 创建一个客户端连接
@@ -200,7 +201,7 @@ public:
     // 设置为非阻塞
     void SetNoBlock()
     {
-        int flag = fcntl(_sockfd,F_GETFD);
-        fcntl(_sockfd,F_SETFD,flag|O_NONBLOCK);
+        int flag = fcntl(_sockfd,F_GETFL,0);
+        fcntl(_sockfd,F_SETFL,flag|O_NONBLOCK);
     }
 };
