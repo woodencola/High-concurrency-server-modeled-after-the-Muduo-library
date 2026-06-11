@@ -2,6 +2,7 @@
 
 #include "LoopThread.hpp"
 #include <vector>
+
 class LoopThreadPool
 {
 private:

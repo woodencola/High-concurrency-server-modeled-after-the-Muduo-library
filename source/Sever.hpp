@@ -4,6 +4,7 @@
 #include "EventLoop.hpp"
 #include "Connection.hpp"
 #include <unordered_map>
+#include<signal.h>
 #include <functional>
 
 class TcpSever
@@ -118,3 +119,13 @@ public:
         _Msg_Cb = cb;
     }
 };
+class NetWork
+{
+    public:
+    NetWork()
+    {
+        signal(SIGPIPE,SIG_IGN);
+    }
+    private:  
+};
+static NetWork nw;
