@@ -7,9 +7,10 @@ private:
     void Connect_hander(const ConnPtr &_con, Buffer *_buffer)
     {
         DBG_LOG("%s", _buffer->GetCurrentReadPosition());
+        //_buffer->MoveReadPosition(_buffer->CurrentEnableReadSpaceSize());
+    //   std::string msg = "我爱你111";
+        _con->Send(_buffer->GetCurrentReadPosition(), _buffer->CurrentEnableReadSpaceSize());
         _buffer->MoveReadPosition(_buffer->CurrentEnableReadSpaceSize());
-        std::string msg = "我爱你111";
-        _con->Send(msg.c_str(), msg.size());
         //  _con->Shutdown();
     }
 
