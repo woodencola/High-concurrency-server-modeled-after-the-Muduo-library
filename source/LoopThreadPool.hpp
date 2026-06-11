@@ -20,7 +20,7 @@ public:
     }
     EventLoop *Get_Next_EventLoop()
     {
-        if (_Thread_Cnt)
+        if (_Thread_Cnt==0)
             return _Base_Loop;
         else
         {

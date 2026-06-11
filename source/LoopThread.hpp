@@ -21,6 +21,7 @@ private:
 
     void Thread_Entry()
     {
+        //这里用条件变量主要是为了防止主线程过早获取Eventloop
        auto loop = std::make_shared<EventLoop>();
         {
             std::unique_lock<std::mutex> guard(_mutex);

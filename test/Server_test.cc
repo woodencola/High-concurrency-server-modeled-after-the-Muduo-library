@@ -11,10 +11,12 @@
 #include"../source/Channel.hpp"
 #include"../source/Log.hpp"
 #include"../source/LoopThread.hpp"  
+#include"../source/LoopThreadPool.hpp"
+LoopThreadLoop* pool;
 auto loop = std::make_shared<EventLoop>();
 
-std::vector<LoopThread> pool(2);
-int next_id = 0;
+// std::vector<LoopThread> pool(2);
+// int next_id = 0;
 // void Close(Channel* ch,EventLoop* _loop)
 // {
 //     // std::cout<< "close"<<ch->Get_Fd()<<std::endl;
@@ -118,8 +120,8 @@ void Accpet1(int newfd)
 {
    
 
-    next_id =  (next_id+1)%2;
-    ConnPtr io = std::make_shared<Connection>(conn_id,newfd,pool[next_id].Get_EventLoop());
+   
+    ConnPtr io = std::make_shared<Connection>(conn_id,newfd,pool->Get_Next_EventLoop());
      mp[conn_id] = io;
     conn_id++;
     io->Set_Msg_Callback(std::bind(Connect_hander,std::placeholders::_1,std::placeholders::_2));
@@ -142,7 +144,9 @@ int main()
 {
     //下面这两个东西下是一个模块的
      //EventLoop loop;
-    
+    pool = new LoopThreadLoop(loop.get());
+    pool->Set_Thread_Cnt(3);
+    pool->Create();
     Poller p;
     //从这里算是缓冲区又是一个模块的
     Socket Server;
@@ -156,16 +160,16 @@ int main()
     Acceptor a(loop.get(),1314);
     a.Set_Acceptor_Callback(std::bind(Accpet1,std::placeholders::_1));
     a.listen();
-    while(1)
-    {
-        // std::vector<Channel*> active;
+    // while(1)
+    // {
+    //     // std::vector<Channel*> active;
         // p.Poll(&active);
         // for(auto& e:active)
         // {
         //     e->HanderEvent();
         // }
         loop->Start();
-    }
-    Server.Close();
+    // }
+    // Server.Close();
     return 0;
 }
