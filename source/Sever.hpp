@@ -75,6 +75,7 @@ public:
     // 服务器运行
     void Start()
     {
+        _pool.Set_Thread_Cnt(_Thread_cnt);
         // 创建从属线程
         _pool.Create();
         // 设置监听

@@ -25,18 +25,18 @@ private:
     void Eevent(const ConnPtr &_con)
     {
         // std::cout<<"i have a plan"<<std::endl;
-        ERR_LOG("I Have a plan");
+        //ERR_LOG("I Have a plan");
     }
 
 public:
     EchoServer(uint16_t port) : _tcp_Server(port)
     {
         _tcp_Server.Set_Msg_Callback(std::bind(&EchoServer::Connect_hander, this, std::placeholders::_1, std::placeholders::_2));
-        _tcp_Server.Set_Conn_Event_Callback(std::bind(&EchoServer::Eevent, this, std::placeholders::_1));
+       // _tcp_Server.Set_Conn_Event_Callback(std::bind(&EchoServer::Eevent, this, std::placeholders::_1));
         _tcp_Server.Set_Conn_Close_Callback(std::bind(&EchoServer::CLose_hander, this, std::placeholders::_1));
         _tcp_Server.Set_Conn_Connect_Callback(std::bind(&EchoServer::ON_hander, this, std::placeholders::_1));
         _tcp_Server.Enable_Is_Delay_del(10);
-        _tcp_Server.Set_Slave_Thread_Cnt(4);
+        _tcp_Server.Set_Slave_Thread_Cnt(2);
     }
     void Start()
     {
