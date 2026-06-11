@@ -126,7 +126,7 @@ void Accpet1(int newfd)
     conn_id++;
     io->Set_Msg_Callback(std::bind(Connect_hander,std::placeholders::_1,std::placeholders::_2));
     io->Set_Conn_Connect_Callback(ON_hander);
-    io->Set_Conn_Close_Callback(CLose_hander);
+    io->Set_Server_Callback(CLose_hander);
     io->EnableTimeoutDel(10);
     io->Established();
    
