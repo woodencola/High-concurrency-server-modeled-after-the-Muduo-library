@@ -12,7 +12,7 @@
 #include"../source/Log.hpp"
 #include"../source/LoopThread.hpp"  
 #include"../source/LoopThreadPool.hpp"
-LoopThreadLoop* pool;
+LoopThreadPool* pool;
 auto loop = std::make_shared<EventLoop>();
 
 // std::vector<LoopThread> pool(2);
@@ -144,7 +144,7 @@ int main()
 {
     //下面这两个东西下是一个模块的
      //EventLoop loop;
-    pool = new LoopThreadLoop(loop.get());
+    pool = new LoopThreadPool(loop.get());
     pool->Set_Thread_Cnt(3);
     pool->Create();
     Poller p;

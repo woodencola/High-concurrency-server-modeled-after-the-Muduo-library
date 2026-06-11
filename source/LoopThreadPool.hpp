@@ -2,7 +2,7 @@
 
 #include "LoopThread.hpp"
 #include <vector>
-class LoopThreadLoop
+class LoopThreadPool
 {
 private:
     int _Thread_Cnt; // 线程数量
@@ -12,7 +12,7 @@ private:
     std::vector<LoopThread *> _Threads;
 
 public:
-    LoopThreadLoop(EventLoop *base_loop)
+    LoopThreadPool(EventLoop *base_loop)
         : _Thread_Cnt(0),
           _next_EventLoop(0),
           _Base_Loop(base_loop)
