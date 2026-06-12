@@ -3,6 +3,6 @@
 
 int main()
 {
-    Channel a;
+    //Channel a;
     return 0;
 }

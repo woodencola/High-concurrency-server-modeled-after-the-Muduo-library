@@ -1389,7 +1389,7 @@ public:
 
     void DisableTimeoutDel()
     {
-        _loop->RunInLoop(std::bind(&Connection::DisableTimeoutDel, this));
+        _loop->RunInLoop(std::bind(&Connection::DisableTimeoutDelInLoop, this));
     }
 
     void Shutdown()
