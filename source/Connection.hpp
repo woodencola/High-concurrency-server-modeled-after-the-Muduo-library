@@ -90,7 +90,7 @@ private:
                 if (_Msg_Cb)
                     _Msg_Cb(shared_from_this(), &_Inbuffer);
             }
-            ReleaseInloop();
+           Release();
             return;
         }
         _Outbuffer.MoveReadPosition(ret);
@@ -100,7 +100,7 @@ private:
             _Channel.Fd_Delete_Write();
             if (_Status == DISCONNECTING)
             {
-                return ReleaseInloop();
+                return Release();
             }
         }
         // 将数据从输出缓冲区发送
@@ -112,7 +112,7 @@ private:
             if (_Msg_Cb)
                 _Msg_Cb(shared_from_this(), &_Inbuffer);
         }
-        ReleaseInloop();
+         Release();
         return;
     }
     void HanderErr()
@@ -173,7 +173,7 @@ private:
             _Connect_Cb(shared_from_this());
     }
     // 将数据放到输出缓冲区,不是实际的发送
-    void SendInLoop(Buffer _b)
+    void SendInLoop(Buffer& _b)
     {
         // 连接关闭无法释放
         if (_Status == DISCONNECTED)
@@ -204,7 +204,7 @@ private:
         // 写入数据失败关闭,或者连接断开
         if (_Outbuffer.CurrentEnableReadSpaceSize() == 0)
         {
-            ReleaseInloop();
+             Release();
         }
     }
     void EnableTimeoutDelInLoop(int sec)
@@ -279,7 +279,7 @@ public:
         // {
         //     _loop->RunInLoop(std::bind(&EventLoop::TimeRemove, _loop, _Timer_Id));
         // }
-       // DBG_LOG("clinet down %p", this);
+        DBG_LOG("clinet down %p", this);
     }
     // 获取conn_id
     int Get_Id()
@@ -296,6 +296,10 @@ public:
     bool Connected()
     {
         return _Status == CONNECTED;
+    }
+    void Release()
+    {
+         _loop->QueueInLoop(std::bind(&Connection::ReleaseInloop, this));
     }
     // 获取上下文
     Any *Get_Context()

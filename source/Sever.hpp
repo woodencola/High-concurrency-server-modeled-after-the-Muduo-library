@@ -14,7 +14,7 @@ class TcpSever
     bool _Is_able_delay_del;                      // 是否启用超时销毁
     int _Thread_cnt;                              // 从属线程数量
     uint64_t _conn_id;                            // 连接唯一id
-    std::shared_ptr<EventLoop> _base_loop;        // 主线程,用来接收所有的连接信息,这个是给accptor用的
+    EventLoop _base_loop;        // 主线程,用来接收所有的连接信息,这个是给accptor用的
     Acceptor _acceptor;                           // 监听套接字组件
     LoopThreadPool _pool;                         // 连接线程池
     std::unordered_map<uint64_t, ConnPtr> _conns; // 连接管理
@@ -36,12 +36,12 @@ class TcpSever
         auto it = _conns.find(id);
         if(it !=_conns.end())
         {
-            _conns.erase(id);
+            _conns.erase(it);
         }
     }
     void RemoveConnection(const ConnPtr &conn)
     {
-        _base_loop->RunInLoop(std::bind(&TcpSever::RemoveConnectionInLoop,this,conn));
+        _base_loop.RunInLoop(std::bind(&TcpSever::RemoveConnectionInLoop,this,conn));
     }
 
     void NewConnection(int fd)
@@ -54,19 +54,19 @@ class TcpSever
         conn->Set_Conn_Event_Callback(_Event_Cb);
         conn->Set_Server_Callback(std::bind(&TcpSever::RemoveConnection,this,std::placeholders::_1));
         if(_Is_able_delay_del)
-        conn->EnableTimeoutDel(10);
+        conn->EnableTimeoutDel(_timeout);
         conn->Established();
         _conns.insert(std::make_pair(_conn_id,conn));
     }
     void RunAfterInLoop(const Function &f, int delay)
     {
         _conn_id++;
-        _base_loop->TimerAdd(_conn_id,delay,f);
+        _base_loop.TimerAdd(_conn_id,delay,f);
     }
 
 public:
     TcpSever(int port) : _port(port), _timeout(0), _Is_able_delay_del(false), _Thread_cnt(0),
-                         _conn_id(0), _base_loop(std::make_shared<EventLoop>()), _acceptor(_base_loop.get(), _port), _pool(_base_loop.get())
+                         _conn_id(0), _acceptor(&_base_loop, _port), _pool(&_base_loop)
     {
         // 设置监听套接字回调
         _acceptor.Set_Acceptor_Callback(std::bind(&TcpSever::NewConnection, this, std::placeholders::_1));
@@ -80,7 +80,7 @@ public:
         _pool.Create();
         // 设置监听
        
-        _base_loop->Start();
+        _base_loop.Start();
     }
     // 设置从属线程数量
     void Set_Slave_Thread_Cnt(int cnt)
@@ -90,7 +90,7 @@ public:
     // 添加定时任务
     void RunAfter(const Function &f, int delay)
     {
-        _base_loop->RunInLoop(std::bind(&TcpSever::RunAfterInLoop, this, f, delay));
+        _base_loop.RunInLoop(std::bind(&TcpSever::RunAfterInLoop, this, f, delay));
     }
     // 是否启动定时销毁
     void Enable_Is_Delay_del(int time)

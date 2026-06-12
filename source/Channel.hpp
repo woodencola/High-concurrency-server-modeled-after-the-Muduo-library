@@ -21,9 +21,9 @@ private:
     eventcallback_t _Err_Callback;   // 错误事件回调
     eventcallback_t _Event_Callback; // 任意事件回调
 public:
-    Channel() =default;
+   // Channel() =default;
    // Channel(int fd,Poller* poller):_fd(fd),_poller(poller){}
-    Channel(int fd,EventLoop* EventLoop):_fd(fd),_eventloop(EventLoop){}
+    Channel(int fd,EventLoop* EventLoop):_fd(fd),_eventloop(EventLoop),_event(0),_revent(0){}
   
     int Get_Fd()
     {
@@ -113,8 +113,7 @@ public:
             // 对于后面两个标志位
             // RDHUP表示对方已经发送了FIN,关闭了写端,处于半连接状态,我们需要处理剩下的数据
             // 下一个是我们这边PRI表示优先级数据,我们需要进行处理
-             if (_Event_Callback)
-                _Event_Callback();
+            
             if (_Read_Callback)
             {
                 _Read_Callback();
@@ -125,8 +124,7 @@ public:
         //对于可能断开连接的操作,我们一次只执行一个
         if (_revent & EPOLLOUT)
         {
-             if (_Event_Callback)
-                _Event_Callback();
+            
             if (_Write_Callback)
             {
                 _Write_Callback();
@@ -136,8 +134,7 @@ public:
         }
         else if (_revent & EPOLLHUP)
         {
-            if (_Event_Callback)
-                _Event_Callback();//此处必须放到释放之前刷新活跃度,释放之后刷新会直接崩溃
+            
             if (_close_Callback)
             {
                 _close_Callback();
@@ -145,13 +142,14 @@ public:
         }
         else if (_revent & EPOLLERR)
         {
-            if (_Event_Callback)
-                _Event_Callback();
+           
             if (_Err_Callback)
             {
                 _Err_Callback();
             }
         }
+        if (_Event_Callback)
+                _Event_Callback();//此处必须放到释放之前刷新活跃度,释放之后刷新会直接崩溃
 
     } // 对事件的执行函数
 };

@@ -36,10 +36,10 @@ private:
      bool _canceled; 
 public:
     time_task(uint64_t id, uint64_t time, const timeer_callback_t &task)
-        : _id(id), _time(time), _task(task) {}
+        : _id(id), _time(time), _task(task),_canceled(false) {}
     ~time_task()
     {
-        if(!_canceled)
+        if(_canceled==false)
         _task();
         _release();
     }
@@ -64,7 +64,7 @@ private:
     int _capacity;                                         // 时间轮当中的最大容量
     std::unordered_map<uint64_t, time_weak_ptr_t> _timers; // 这个东西是为了第一次添加之后更新活跃度的
     //,weakptr本身并不会占据多余的技术,但可以让后续的shared_ptr,找到对应的资源
-    std::weak_ptr<EventLoop> _loop;
+    EventLoop* _loop;
     int _timerfd;
     std::unique_ptr<Channel> _timerfd_channel;
     static int timerfd_create_self()
@@ -86,28 +86,17 @@ private:
         timerfd_settime(timerfd, 0, &t, nullptr);
         return timerfd;
     }
-    void RemoveTaskFromWheel(const time_task_ptr_t &task)
-    {
-        for (auto &vec : _wheels)
-        {
-            auto it = std::find(vec.begin(), vec.end(), task);
-            if (it != vec.end())
-            {
-                vec.erase(it);
-                return; // 每个任务只应出现在一个槽位
-            }
-        }
-    }
+    
     void Timerfd_Tick()
     {
         uint64_t tmp = 0;
         ssize_t ret = read(_timerfd, &tmp, sizeof(tmp));
         if (ret <= 0)
         {
-            if (errno == EINTR || errno == EAGAIN)
-            {
-                return;
-            }
+            // if (errno == EINTR || errno == EAGAIN)
+            // {
+            //     return;
+            // }
             ERR_LOG("timerfd_not_read");
             abort();
         }
@@ -121,12 +110,19 @@ private:
         // 让时间轮运动
         run_timer();
     }
+    void Removetimer(uint64_t id)
+    {
+        auto it = _timers.find(id);
+            if (it != _timers.end()) {
+                _timers.erase(it);
+            }
+    }
 
 public:
-    time_task_wheel(std::weak_ptr<EventLoop> loop) : _capacity(60), _tick(0), _timerfd(timerfd_create_self()), _loop(loop),
+    time_task_wheel(EventLoop* loop) : _capacity(60), _tick(0), _timerfd(timerfd_create_self()), _loop(loop),
                                                      _timerfd_channel(nullptr)
     {
-        _timerfd_channel = std::make_unique<Channel>(_timerfd, loop.lock().get());
+        _timerfd_channel = std::make_unique<Channel>(_timerfd, loop);
         _wheels.resize(_capacity);
         _timerfd_channel->Set_Read_Callback(std::bind(&time_task_wheel::OneTime, this));
         _timerfd_channel->Fd_Add_Read();
@@ -168,27 +164,27 @@ private:
         // }
         time_task_ptr_t ptr = std::make_shared<time_task>(id, time, task);
         _timers[id] = ptr;
-        ptr->set_release(std::bind(&time_task_wheel::remove_time_task, this, id));
+        ptr->set_release(std::bind(&time_task_wheel::Removetimer, this, id));
         // 找到位置延迟加上当前时间数,对整体时间取模防止越界
         uint64_t pos = (time + _tick) % _capacity;
         _wheels[pos].push_back(ptr);
     }
     void flush_time_task(uint64_t id)
     {
-        auto it = _timers.find(id);
+         auto it = _timers.find(id);
         if (it == _timers.end())
         {
             //  std::cerr << " not find" << std::endl;
             return;
         }
-        auto ptr1 = it->second.lock();
-        if (!ptr1)
-        {
-            // ptr->Cancel();      
-            _timers.erase(it);
-            return;
-        }
-        RemoveTaskFromWheel(ptr1);
+        // auto ptr1 = it->second.lock();
+        // if (!ptr1)
+        // {
+        //     // ptr->Cancel();      
+        //     _timers.erase(it);
+        //     return;
+        // }
+        // RemoveTaskFromWheel(ptr1);
         time_task_ptr_t ptr = it->second.lock();
         int time = ptr->delay_time();
         uint64_t pos = (time + _tick) % _capacity;
@@ -215,10 +211,10 @@ private:
              ptr->Cancel();      
             //RemoveTaskFromWheel(ptr);   
         }   
-        _timers.erase(it);
+       // _timers.erase(it);
     }
 };
-class EventLoop : public std::enable_shared_from_this<EventLoop>
+class EventLoop 
 {
 
 private:
@@ -229,13 +225,10 @@ private:
     std::unique_ptr<Channel> _event_channel;
     std::vector<Func> _task_queue; // 不采用队列,后面直接拷贝,提高效率
     std::mutex _mutex;             // 锁任务队列,保证线程安全
-    std::shared_ptr<time_task_wheel> _timewheel;
+    time_task_wheel   _timewheel;
 
 public:
-    std::shared_ptr<EventLoop> Get_this()
-    {
-        return shared_from_this();
-    }
+   
     void RunAlltask()
     {
         std::vector<Func> _task;
@@ -289,7 +282,10 @@ public:
     }
 
 public:
-    EventLoop() : _thread_id(std::this_thread::get_id()), _eventfd(create_event_fd()), _event_channel(new Channel(_eventfd, this)), _timewheel(nullptr)
+    EventLoop() : _thread_id(std::this_thread::get_id()),
+     _eventfd(create_event_fd()),
+      _event_channel(new Channel(_eventfd, this)), 
+      _timewheel(this)
     {
         // 设置回调,开去读事件
         //_timewheel = std::make_shared<time_task_wheel>(Get_this());
@@ -297,20 +293,10 @@ public:
         _event_channel->Set_Read_Callback(std::bind(&EventLoop::Read_Event_fd, this));
         _event_channel->Fd_Add_Read();
     }
-    ~EventLoop()
-    {
-        if (_event_channel)
-        {
-            _event_channel->Remove();
-        }
-        close(_eventfd);
-    }
+   
     void Start()
     {
-        if (!_timewheel)
-        {
-            _timewheel = std::make_shared<time_task_wheel>(shared_from_this());
-        }
+       
         while (true)
         {
             // 1.事件监控
@@ -364,19 +350,19 @@ public:
     }
     void TimerAdd(uint64_t id, uint64_t time, const timeer_callback_t &task)
     {
-        _timewheel->set_time_task_loop(id, time, task);
+        _timewheel.set_time_task_loop(id, time, task);
     }
     void TimerFlush(uint64_t id)
     {
-        _timewheel->flush_time_task_loop(id);
+        _timewheel.flush_time_task_loop(id);
     }
     void TimeRemove(uint64_t id)
     {
-        _timewheel->remove_time_task_loop(id);
+        _timewheel.remove_time_task_loop(id);
     }
     bool hastimer(uint64_t id)
     {
-        return _timewheel->HasTimer(id);
+        return _timewheel.HasTimer(id);
     }
 };
 void Channel::unpate()
@@ -389,13 +375,13 @@ void Channel::Remove()
 }
 void time_task_wheel::set_time_task_loop(uint64_t id, uint64_t time, const timeer_callback_t &task)
 {
-    _loop.lock()->RunInLoop(std::bind(&time_task_wheel::set_time_task, this, id, time, task));
+    _loop->RunInLoop(std::bind(&time_task_wheel::set_time_task, this, id, time, task));
 }
 void time_task_wheel::flush_time_task_loop(uint64_t id)
 {
-    _loop.lock()->RunInLoop(std::bind(&time_task_wheel::flush_time_task, this, id));
+    _loop->RunInLoop(std::bind(&time_task_wheel::flush_time_task, this, id));
 }
 void time_task_wheel::remove_time_task_loop(uint64_t id)
 {
-    _loop.lock()->RunInLoop(std::bind(&time_task_wheel::remove_time_task, this, id));
+    _loop->RunInLoop(std::bind(&time_task_wheel::remove_time_task, this, id));
 }

@@ -23,7 +23,7 @@ private:
         auto it = _channels.find(fd);
         if (it == _channels.end())
         {
-          //  ERR_LOG("fd not is exist in _channels");
+            //  ERR_LOG("fd not is exist in _channels");
             return false;
         }
         return true;
@@ -39,19 +39,7 @@ private:
         if (ret < 0)
         {
             ERR_LOG("fd not is control");
-            return;
-        //     if (opr == EPOLL_CTL_DEL && (errno == ENOENT || errno == EBADF)) {
-        //     // 已经不存在，无需再次删除
-        //     DBG_LOG("epoll_ctl DEL: fd %d already removed", fd);
-        //     return;
-        // }
-        // // 其他错误，记录日志但不要 abort，避免压力测试崩溃
-        // ERR_LOG("epoll_ctl failed, op=%d, fd=%d, errno=%d (%s)", opr, fd, errno, strerror(errno));
-        // // 只有在严重错误时才 abort，例如添加新 fd 时失败
-        // if (opr == EPOLL_CTL_ADD) {
-        //    // abort();  // 添加失败确实严重，但可以优化为返回错误
-        //    return;
-        // }
+           
         }
     }
 
@@ -65,10 +53,7 @@ public:
             abort();
         }
     }
-    ~Poller()
-    {
-        close(_epfd);
-    }
+
     // 更新或者修改事件监控
     void UpdateEvent(Channel *ch)
     {
@@ -92,8 +77,8 @@ public:
         if (it != _channels.end())
         {
             _channels.erase(fd);
-            Epoll_Opr(ch, EPOLL_CTL_DEL);
         }
+        Epoll_Opr(ch, EPOLL_CTL_DEL);
     }
     // 当前正在活跃的epoll事件
     void Poll(std::vector<Channel *> *ret)

@@ -23,11 +23,10 @@ public:
     {
         if (_Thread_Cnt==0)
             return _Base_Loop;
-        else
-        {
+       
             _next_EventLoop = (_next_EventLoop + 1) % _Thread_Cnt;
             return _Slave_Event_Loops[_next_EventLoop];
-        }
+        
     }
     void Set_Thread_Cnt(int n)
     {
@@ -38,7 +37,9 @@ public:
     // 创建从属线程
     void Create()
     {
-        _Threads.resize(_Thread_Cnt);
+       if(_Thread_Cnt>0)
+       {
+         _Threads.resize(_Thread_Cnt);
         _Slave_Event_Loops.resize(_Thread_Cnt);
         for (int i = 0; i < _Thread_Cnt; i++)
         {
@@ -46,5 +47,6 @@ public:
             _Threads[i] = new LoopThread();
             _Slave_Event_Loops[i] = _Threads[i]->Get_EventLoop();
         }
+       }
     }
 };

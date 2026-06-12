@@ -20,7 +20,7 @@ private:
     }
     void HanderRead()
     {
-          DBG_LOG("Acceptor::HanderRead called");
+       
         int newfd = _socket.Accept();
         if (newfd < 0)
         {

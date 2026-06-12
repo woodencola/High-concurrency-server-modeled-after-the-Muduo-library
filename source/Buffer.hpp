@@ -21,8 +21,8 @@ namespace Buffer_Module
     private:
         char *begin()
         {
-            // return &*_buffer.begin();
-            return _buffer.data();
+            return &*_buffer.begin();
+           // return _buffer.data();
         }
 
     public:
@@ -98,7 +98,7 @@ namespace Buffer_Module
             std::copy(d, d + len, GetCurrentWritePosition());
         }
         // 读取数据
-        void Read(void *buffer, uint64_t len)
+        void Read( void *buffer, uint64_t len)
         {
             // 读取的空间一定要小于可读取的大小
             // 我底层也不知道有多少可读取的空间,后面仍然需要修改
@@ -151,10 +151,11 @@ namespace Buffer_Module
         }
         void WriteAsBufferAndAdd(Buffer &b)
         {
-            uint64_t size = b.CurrentEnableReadSpaceSize();
+           // uint64_t size = b.CurrentEnableReadSpaceSize();
             WriteAsBuffer(b);
             MoveWritePosition(b.CurrentEnableReadSpaceSize());
-            b.MoveReadPosition(size);
+           // b.MoveReadPosition(size);
+           
         }
         void ReadAndPop(void *buffer, uint64_t len)
         {

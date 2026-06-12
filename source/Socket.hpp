@@ -10,7 +10,7 @@
 #include<fcntl.h>
 #include "Log.hpp"
 
-const static int Default_Backlog = 32;
+const static int Default_Backlog = 1024;
 class Socket
 {
 private:
@@ -49,7 +49,7 @@ public:
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port); // 主机转网络
         inet_pton(AF_INET, ip.c_str(), &(addr.sin_addr));
-        socklen_t len = sizeof addr;
+        socklen_t len = sizeof( struct sockaddr_in);
         int ret = bind(_sockfd, (const sockaddr *)&addr, len);
         if (ret < 0)
         {
