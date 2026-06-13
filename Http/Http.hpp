@@ -1,6 +1,8 @@
+#pragma once
 #include "../Sever_final/Sever.hpp"
 #include <fstream>
-
+#include <sys/stat.h>
+#include <regex>
 class Uitl
 {
 public:
@@ -338,9 +340,148 @@ public:
         return it->second;
     }
     // 判断一个文件是否是一个目录
-    static bool IsDirectory();
+    static bool IsDirectory(const std::string &filename)
+    {
+        struct stat st;
+        int ret = stat(filename.c_str(), &st);
+        if (ret < 0)
+        {
+            ERR_LOG("FILE NOT EXIST");
+            return false;
+        }
+        return S_ISDIR(st.st_mode);
+    }
     // 判断一个文件是否是普通文件
-    static bool IsRegular();
+    static bool IsRegular(const std::string &filename)
+    {
+
+        struct stat st;
+        int ret = stat(filename.c_str(), &st);
+        if (ret < 0)
+        {
+            ERR_LOG("FILE NOT EXIST");
+            return false;
+        }
+        return S_ISREG(st.st_mode);
+    }
     // http请求的资源路径有效性判断
-    static bool VaildPath();
+    static bool VaildPath(const std::string &path)
+    {
+        std::vector<std::string> v;
+        split(path, "/", &v);
+        int level = 0;
+        for (int i = 0; i < v.size(); i++)
+        {
+            if (v[i] == "..")
+            {
+                level--;
+                if (level < 0)
+                {
+                    return false;
+                }
+            }
+            else
+                level++;
+        }
+        return true;
+    }
+};
+class HttpRequest
+{
+public:
+    // 请求方法
+    std::string _method;
+    // 请求路径
+    std::string _path;
+    // 请求版本
+    std::string _version;
+    // 请求正文
+    std::string _body;
+    // 正则获取的结果
+    std::smatch _matches;
+    // 请求行
+    std::unordered_map<std::string, std::string> _headers;
+    // 查询字符串
+    std::unordered_map<std::string, std::string> _params;
+
+public:
+    void ReSet()
+    {
+        _method.clear();
+        _path.clear();
+        _version.clear();
+        _body.clear();
+        std::smatch tmp;
+        _matches.swap(tmp);
+        _headers.clear();
+        _params.clear();
+    }
+    // 设置请求行
+    void SetHeader(std::string &key, std::string &val)
+    {
+        _headers.insert(std::make_pair(key, val));
+    }
+    // 判断请求行是否存在
+    bool HasHeader(std::string &key)
+    {
+        auto it = _headers.find(key);
+        if (it != _headers.end())
+        {
+            return true;
+        }
+        return false;
+    }
+    std::string GetHeader(std::string &key)
+    {
+        // 获取请求行
+        auto it = _headers.find(key);
+        if (it != _headers.end())
+        {
+            return it->second;
+        }
+        return std::string();
+    }
+    void SetParams(std::string &key, std::string &val)
+    {
+        _params.insert(std::make_pair(key, val));
+    }
+    bool HasParams(std::string &key)
+    {
+        auto it = _params.find(key);
+        if (it != _params.end())
+        {
+            return true;
+        }
+        return false;
+    }
+    std::string GetParams(std::string &key)
+    {
+        // 获取查询字符串
+        auto it = _params.find(key);
+        if (it != _params.end())
+        {
+            return it->second;
+        }
+        return std::string();
+    }
+    size_t BodySize()
+    {
+        // 正文长度
+        std::string length = "Content-Length";
+        if(!HasHeader(length))
+        {
+            return 0;
+        }
+        return std::stol(GetHeader(length));
+    }
+    bool Is_Cose()
+    {
+        // 是否是短链接
+        std::string connection_type = "Connection";
+        if(HasHeader(connection_type)&&GetHeader(connection_type)=="keep-alive")
+        {
+            return false;
+        }
+        return true;
+    }
 };

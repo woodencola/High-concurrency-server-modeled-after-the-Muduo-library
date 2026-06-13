@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <memory>
 #include <functional>
@@ -520,8 +521,8 @@ private:
         Timerfd_Tick();
         run_timer();
     }
-
-    void Removetimer(uint64_t id)
+    //执行任务
+    void Excutetimer(uint64_t id)
     {
         auto it = _timers.find(id);
         if (it != _timers.end())
@@ -792,7 +793,7 @@ void time_task_wheel::set_time_task(uint64_t id, uint64_t time, const timeer_cal
 {
     time_task_ptr_t ptr = std::make_shared<time_task>(id, time, task);
     _timers[id] = ptr;
-    ptr->set_release(std::bind(&time_task_wheel::Removetimer, this, id));
+    ptr->set_release(std::bind(&time_task_wheel::Excutetimer, this, id));
     uint64_t pos = (time + _tick) % _capacity;
     _wheels[pos].push_back(ptr);
 }
@@ -1254,7 +1255,7 @@ private:
         _Channel.Remove();
         _Socket.Close();
         if (_loop->hastimer(_Timer_Id))
-            DisableTimeoutDelInLoop();
+             DisableTimeoutDelInLoop();
         if (_Close_Cb)
             _Close_Cb(shared_from_this());
         if (_server_closed_callback)
