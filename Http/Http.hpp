@@ -1,5 +1,5 @@
 #include "../Sever_final/Sever.hpp"
-#include<fstream>
+#include <fstream>
 
 class Uitl
 {
@@ -47,14 +47,16 @@ public:
             return false;
         }
         size_t typesize = 0;
+
+        ifs.seekg(0, ifs.end);
+        typesize = ifs.tellg();
+        ifs.seekg(0, ifs.beg);
+        // 空串直接返回
         if (typesize == 0)
         {
             buffer->clear();
             return true;
         }
-        ifs.seekg(0, ifs.end);
-        typesize = ifs.tellg();
-        ifs.seekg(0, ifs.beg);
         buffer->resize(typesize);
         ifs.read(&(*buffer)[0], typesize);
         if (ifs.good() == false)
@@ -67,9 +69,53 @@ public:
         return true;
     }
     // 向文件中写入数据
-    static bool WriteFile();
+    static bool WriteFile(const std::string &filename, const std::string &buffer)
+    {
+        std::ofstream ofs;
+        ofs.open(filename, std::ios::binary | std::ios::trunc);
+        if (!ofs.is_open())
+        {
+            ERR_LOG("OPEN FILE %s FAILED", filename.c_str());
+            return false;
+        }
+        ofs.write(buffer.c_str(), buffer.size());
+        if (ofs.good() == false)
+        {
+            ERR_LOG("WRITE FILE %s FAILED", filename.c_str());
+            ofs.close();
+            return false;
+        }
+        ofs.close();
+        return true;
+    }
     // URL编码
-    static bool UrlEnCode();
+    // URL编码，避免URL中资源路径与查询字符串中的特殊字符与HTTP请求中特殊字符产生歧义
+    // 编码格式：将特殊字符的ascii值，转换为两个16进制字符，前缀% C++ -> C%2B2B
+    //  不编码的特殊字符：RFC3986文档规定。- _ ~ 字母，数字属于绝对不编码字符
+    // RFC3986文档规定，编码格式 %HH
+    // W3C标准中规定，查询字符串中的空格，需要编码为+，解码则是+转空格
+    static std::string UrlEnCode(const std::string &src, bool is_space_to_plus)
+    {
+        std::string ret;
+        for (auto &e : src)
+        {
+            if (e == '-' || e == '_' || e == '~' || e == '.' || isalnum(e))
+            {
+                ret += e;
+            }
+            else if (is_space_to_plus && e == ' ')
+            {
+                ret += '+';
+            }
+            else
+            {
+                char tmp[4] = {0};
+                snprintf(tmp, 4, "%%%02X", e);
+                ret += tmp;
+            }
+        }
+        return ret;
+    }
     // URL解码
     static bool UrlDecode();
     // 响应码的描述信息获取
