@@ -1,5 +1,5 @@
 .PHONY:ALL
-ALL:buffer_test log_test Client_test Server_test Channel_test poller_test EventLoop_test Connection_test Accertor_test TcpServer spilt_test ReadFile Write_test URL_encode
+ALL:buffer_test log_test Client_test Server_test Channel_test poller_test EventLoop_test Connection_test Accertor_test TcpServer spilt_test ReadFile Write_test URL_encode Decode
 buffer_test:buffertest.cc
 	g++ -o $@ $^ -std=c++17 -lpthread
 log_test:log_test.cc
@@ -28,6 +28,8 @@ Write_test:Write_test.cc
 	g++ -o $@ $^ -std=c++17 -lpthread -g
 URL_encode:URL_encode.cc
 	g++ -o $@ $^ -std=c++17 -lpthread -g
+Decode:Decode.cc
+	g++ -o $@ $^ -std=c++17 -lpthread -g
 .PHONY:clean
 clean:
-	rm -rf buffer_test log_test Client_test Server_test Channel_test poller_test EventLoop_test Connection_test Accertor_test TcpServer spilt_test ReadFile Write_test URL_encode
+	rm -rf buffer_test log_test Client_test Server_test Channel_test poller_test EventLoop_test Connection_test Accertor_test TcpServer spilt_test ReadFile Write_test URL_encode Decode
