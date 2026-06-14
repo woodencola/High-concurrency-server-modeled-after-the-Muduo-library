@@ -171,6 +171,7 @@ namespace Buffer_Module
             return ret;
         }
 
+    public:
         std::string GetLine()
         {
             char *LF = GetCRLF();
@@ -180,8 +181,6 @@ namespace Buffer_Module
             }
             return ReadAsString(LF - GetCurrentReadPosition() + 1);
         }
-
-    public:
         std::string GetLineAndAdd()
         {
             std::string ret = GetLine();
@@ -521,7 +520,7 @@ private:
         Timerfd_Tick();
         run_timer();
     }
-    //执行任务
+    // 执行任务
     void Excutetimer(uint64_t id)
     {
         auto it = _timers.find(id);
@@ -1255,7 +1254,7 @@ private:
         _Channel.Remove();
         _Socket.Close();
         if (_loop->hastimer(_Timer_Id))
-             DisableTimeoutDelInLoop();
+            DisableTimeoutDelInLoop();
         if (_Close_Cb)
             _Close_Cb(shared_from_this());
         if (_server_closed_callback)

@@ -1,74 +1,191 @@
-#include "../Sever.hpp"
-// ==================== EchoServer 测试类 ====================
-class EchoServer
-{
-private:
-   TcpSever _tcp_Server;
+// main.cpp
+#include "../Sever.hpp"   
+#include "../../Http/Http.hpp"
 
-   void OnConnected(const ConnPtr &conn)
-   {
-      DBG_LOG("NEW CONNECTION:%p", conn.get());
-   }
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <memory>
+#include <string>
+#include <functional>
 
-   void OnClosed(const ConnPtr &conn)
-   {
-      DBG_LOG("CLOSE CONNECTION:%p", conn.get());
-   }
-
-   //  void OnMessage(const ConnPtr& conn, Buffer* buf) {
-   //    const char* response =
-   //      "HTTP/1.1 200 OK\r\n"
-   //      "Content-Length: 2\r\n"
-   //      "Connection: close\r\n"
-   //      "\r\n"
-   //      "OK";
-
-   //  // 3. 发送响应
-   //  conn->Send(response, strlen(response));
-
-   //  // 4. 消费缓冲区中的所有数据（避免下次重复触发）
-   //  //    你的 Buffer 类有 MoveReadPosition，直接移动到末尾
-   //  buf->MoveReadPosition(buf->CurrentEnableReadSpaceSize());
-
-   //  // 5. 关闭连接（因为短连接，且 Connection: close）
-   //  conn->Shutdown();  // 或者 conn->Shutdown() 会触发优雅关闭
-
-   // }
-   void OnMessage(const ConnPtr &conn, Buffer *buf)
-   {
-      const char *response =
-          "HTTP/1.1 200 OK\r\n"
-          "Content-Length: 2\r\n"
-          "Connection: keep-alive\r\n"
-          "\r\n"
-          "OK";
-
-      conn->Send(response, strlen(response));
-
-      buf->MoveReadPosition(
-          buf->CurrentEnableReadSpaceSize());
-   }
-
+class HttpServer {
 public:
-   EchoServer(uint16_t port) : _tcp_Server(port)
-   {
-      _tcp_Server.Set_Msg_Callback(std::bind(&EchoServer::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
-      _tcp_Server.Set_Conn_Close_Callback(std::bind(&EchoServer::OnClosed, this, std::placeholders::_1));
-      _tcp_Server.Set_Conn_Connect_Callback(std::bind(&EchoServer::OnConnected, this, std::placeholders::_1));
-      _tcp_Server.Enable_Is_Delay_del(10);
-      _tcp_Server.Set_Slave_Thread_Cnt(2);
-   }
+    using Handler = std::function<void(const HttpRequest&, HttpResponse&)>;
 
-   void Start()
-   {
-      _tcp_Server.Start();
-   }
+    explicit HttpServer(uint16_t port, const std::string& root_dir)
+        : _tcp_sever(port), _root_dir(root_dir) {
+        _tcp_sever.Set_Msg_Callback(
+            std::bind(&HttpServer::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
+        _tcp_sever.Set_Conn_Connect_Callback([](const ConnPtr& conn) {
+            DBG_LOG("New connection from fd=%d", conn->Get_Fd());
+        });
+        _tcp_sever.Set_Conn_Close_Callback([](const ConnPtr& conn) {
+            DBG_LOG("Connection closed: fd=%d", conn->Get_Fd());
+        });
+    }
+
+    void Start(int thread_cnt = 0) {
+        _tcp_sever.Set_Slave_Thread_Cnt(thread_cnt);
+        _tcp_sever.Start();
+    }
+
+private:
+    TcpSever _tcp_sever;
+    std::string _root_dir;
+
+    struct ConnContext {
+        HttpContent parser;
+        bool keep_alive = true;
+    };
+
+    void OnMessage(const ConnPtr& conn, Buffer* buffer) {
+        ConnContext* ctx = conn->Get_Context()->Get<ConnContext>();
+        if (!ctx) {
+            ctx = new ConnContext();
+            conn->Set_Context(ctx);
+        }
+
+        HttpContent& parser = ctx->parser;
+        parser.RecvHttpRequest(buffer);
+        int status = parser.resqstatu();
+
+        if (status != 200) {
+            HttpResponse resp(status);
+            BuildErrorResponse(resp);
+            SendResponse(conn, resp);
+            conn->Shutdown();
+            delete ctx;
+            conn->Set_Context(nullptr);
+            return;
+        }
+
+        if (parser.RecvStatu() == RECV_HTTP_OVER) {
+            HttpRequest& req = parser.Request();
+            HttpResponse resp;
+            HandleRequest(req, resp);
+
+            bool client_keep = false;
+            if (req._version == "HTTP/1.1") {
+                client_keep = (req.GetHeader("Connection") != "close");
+            } else {
+                client_keep = (req.GetHeader("Connection") == "keep-alive");
+            }
+            ctx->keep_alive = client_keep;
+            if (ctx->keep_alive) {
+                resp.SetHeader("Connection", "keep-alive");
+            } else {
+                resp.SetHeader("Connection", "close");
+            }
+
+            SendResponse(conn, resp);
+            parser = HttpContent();
+            if (!ctx->keep_alive) {
+                conn->Shutdown();
+                delete ctx;
+                conn->Set_Context(nullptr);
+            }
+        }
+    }
+
+   void HandleRequest(const HttpRequest& req, HttpResponse& resp) {
+    if (req._method != "GET" && req._method != "HEAD") {
+        resp._status = 405;
+        BuildErrorResponse(resp);
+        return;
+    }
+
+    std::string path = req._path;
+    if (!Uitl::VaildPath(path)) {
+        resp._status = 403;
+        BuildErrorResponse(resp);
+        return;
+    }
+
+    // 处理根路径
+    if (path.empty() || path == "/") {
+        path = "/index.html";
+    }
+
+    // 构建完整路径
+    std::string full_path = _root_dir + path;
+
+    // 1. 如果是目录且不以/结尾，重定向
+    if (Uitl::IsDirectory(full_path) && path.back() != '/') {
+        resp.SetRedirect(path + "/");
+        return;
+    }
+
+    // 2. 如果以/结尾，自动补 index.html
+    if (path.back() == '/') {
+        full_path += "index.html";
+    }
+
+    // 3. 检查文件是否存在
+    bool is_file = Uitl::IsRegular(full_path);
+    
+    // 4. 如果不存在且路径没有后缀（不包含点），尝试加 .html
+    if (!is_file && path.find('.') == std::string::npos && path.back() != '/') {
+        std::string try_path = full_path + ".html";
+        if (Uitl::IsRegular(try_path)) {
+            full_path = try_path;
+            is_file = true;
+        }
+    }
+
+    if (!is_file) {
+        resp._status = 404;
+        BuildErrorResponse(resp);
+        return;
+    }
+
+    // 读取并返回文件
+    std::string content;
+    if (!Uitl::ReadFile(full_path, &content)) {
+        resp._status = 500;
+        BuildErrorResponse(resp);
+        return;
+    }
+
+    resp._status = 200;
+    resp.SetHeader("Content-Type", Uitl::ExMime(full_path));
+    resp.SetHeader("Content-Length", std::to_string(content.size()));
+    if (req._method == "GET") {
+        resp._body = std::move(content);
+    } else {
+        resp._body.clear();
+    }
+}
+
+    void BuildErrorResponse(HttpResponse& resp) {
+        std::string status_desc = Uitl::StatuDesc(resp._status);
+        std::string body = "<html><head><title>Error</title></head><body>"
+                           "<h1>" + std::to_string(resp._status) + " " + status_desc + "</h1>"
+                           "</body></html>";
+        resp.SetHeader("Content-Type", "text/html");
+        resp.SetHeader("Content-Length", std::to_string(body.size()));
+        resp._body = std::move(body);
+    }
+
+    void SendResponse(const ConnPtr& conn, const HttpResponse& resp) {
+        std::string resp_str = SerializeResponse(resp);
+        conn->Send(resp_str.c_str(), resp_str.size());
+    }
+
+    std::string SerializeResponse(const HttpResponse& resp) {
+        std::string ret;
+        ret += "HTTP/1.1 " + std::to_string(resp._status) + " " + Uitl::StatuDesc(resp._status) + "\r\n";
+        for (auto& [key, value] : resp._headers) {
+            ret += key + ": " + value + "\r\n";
+        }
+        ret += "\r\n";
+        ret += resp._body;
+        return ret;
+    }
 };
 
-// ==================== 主函数 ====================
-int main()
-{
-   EchoServer a(1315);
-   a.Start();
-   return 0;
+int main() {
+    HttpServer server(1315, "/home/ubuntu/galgamesource/www.ymgal.games");
+    server.Start(4);
+    return 0;
 }
