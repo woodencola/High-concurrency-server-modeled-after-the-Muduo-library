@@ -88,7 +88,8 @@ private:
         }
     }
 
-   void HandleRequest(const HttpRequest& req, HttpResponse& resp) {
+  void HandleRequest(const HttpRequest& req, HttpResponse& resp) {
+    // 只支持 GET 和 HEAD
     if (req._method != "GET" && req._method != "HEAD") {
         resp._status = 405;
         BuildErrorResponse(resp);
@@ -96,6 +97,8 @@ private:
     }
 
     std::string path = req._path;
+
+    // 防止路径遍历攻击
     if (!Uitl::VaildPath(path)) {
         resp._status = 403;
         BuildErrorResponse(resp);
@@ -107,24 +110,13 @@ private:
         path = "/index.html";
     }
 
-    // 构建完整路径
+    // 构建完整文件系统路径
     std::string full_path = _root_dir + path;
 
-    // 1. 如果是目录且不以/结尾，重定向
-    if (Uitl::IsDirectory(full_path) && path.back() != '/') {
-        resp.SetRedirect(path + "/");
-        return;
-    }
-
-    // 2. 如果以/结尾，自动补 index.html
-    if (path.back() == '/') {
-        full_path += "index.html";
-    }
-
-    // 3. 检查文件是否存在
+    // ---------- 1. 先尝试直接作为文件 ----------
     bool is_file = Uitl::IsRegular(full_path);
-    
-    // 4. 如果不存在且路径没有后缀（不包含点），尝试加 .html
+
+    // ---------- 2. 如果不是文件且路径无后缀，尝试加 .html ----------
     if (!is_file && path.find('.') == std::string::npos && path.back() != '/') {
         std::string try_path = full_path + ".html";
         if (Uitl::IsRegular(try_path)) {
@@ -133,13 +125,26 @@ private:
         }
     }
 
+    // ---------- 3. 如果是目录且不以斜杠结尾，重定向 ----------
+    if (!is_file && Uitl::IsDirectory(full_path) && path.back() != '/') {
+        resp.SetRedirect(path + "/");
+        return;
+    }
+
+    // ---------- 4. 如果以斜杠结尾，补 index.html ----------
+    if (path.back() == '/') {
+        full_path += "index.html";
+        is_file = Uitl::IsRegular(full_path);
+    }
+
+    // ---------- 5. 最终判断 ----------
     if (!is_file) {
         resp._status = 404;
         BuildErrorResponse(resp);
         return;
     }
 
-    // 读取并返回文件
+    // 读取文件内容
     std::string content;
     if (!Uitl::ReadFile(full_path, &content)) {
         resp._status = 500;
@@ -185,7 +190,7 @@ private:
 };
 
 int main() {
-    HttpServer server(1315, "/home/ubuntu/galgamesource/www.ymgal.games");
+    HttpServer server(1315, "/home/ubuntu/galgamesource/www.ymgal.games/");
     server.Start(4);
     return 0;
 }

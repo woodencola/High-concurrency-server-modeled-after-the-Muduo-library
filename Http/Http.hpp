@@ -421,7 +421,7 @@ public:
         int ret = stat(filename.c_str(), &st);
         if (ret < 0)
         {
-            ERR_LOG("FILE NOT EXIST");
+           // ERR_LOG("FILE NOT EXIST");
             return false;
         }
         return S_ISREG(st.st_mode);
@@ -467,11 +467,12 @@ public:
     std::unordered_map<std::string, std::string> _params;
 
 public:
+    HttpRequest(const std::string &version = "HTTP/1.1") : _version(version) {}
     void ReSet()
     {
         _method.clear();
         _path.clear();
-        _version.clear();
+        _version = "HTTP/1.1";
         _body.clear();
         std::smatch tmp;
         _matches.swap(tmp);
@@ -540,6 +541,7 @@ public:
     {
         // 是否是短链接
         std::string connection_type = "Connection";
+     //   ERR_LOG("{%s}",GetHeader(connection_type).c_str());
         if (HasHeader(connection_type) && GetHeader(connection_type) == "keep-alive")
         {
             return false;
@@ -658,7 +660,7 @@ private:
         /// service/v2/device/data/history
         // devId=550e8400-e29b-41d4-a716-446655440000&start=2025-01-01&end=2025-12-31&fields=temp,humi,press&group=hour
         // HTTP/1.1
-        static std::regex rx1("(GET|POST|HEAD|DELETE|PUT)\\s+(\\S+?)(?:\\?(\\S*))?\\s+(HTTP/1\\.[01])(?:\n|\r\n)?");
+        static std::regex rx1("(GET|POST|HEAD|DELETE|PUT)\\s+(\\S+?)(?:\\?(\\S*))?\\s+(HTTP/1\\.[01])(?:\n|\r\n)?", std::regex::icase);
         std::smatch sm;
         bool ret = std::regex_match(buffer, sm, rx1);
         if (ret == false)
@@ -669,6 +671,7 @@ private:
         }
         _request._version = sm[4];
         _request._method = sm[1];
+        std::transform(_request._method.begin(), _request._method.end(), _request._method.begin(), ::toupper);
         _request._path = Uitl::UrlDecode(sm[2], false);
         std::string sreach = sm[3];
         std::vector<std::string> v;
@@ -754,6 +757,7 @@ private:
                 break;
             }
             bool ret = ParseHttpHead(line);
+        //    DBG_LOG("HEAD line: [%s]", line.c_str());
             if (ret == false)
             {
                 return false;
@@ -780,6 +784,7 @@ private:
         std::string key = line.substr(0, pos);
         std::string value = line.substr(pos + 2);
         _request.SetHeader(key, value);
+        // DBG_LOG("Parsed header: %s => %s", key.c_str(), value.c_str());
         return true;
     }
     // 接收正文
@@ -833,6 +838,13 @@ private:
 
 public:
     HttpContent() : _recv_statu(RECV_HTTP_LINE), _resq_statu(200) {}
+    // 重置上下文
+    void Reset()
+    {
+        _recv_statu = RECV_HTTP_LINE;
+        _resq_statu = 200;
+        _request.ReSet();
+    }
     // 获取状态码
     int resqstatu()
     {
@@ -849,43 +861,288 @@ public:
         return _request;
     }
     // 解析
+    // void RecvHttpRequest(Buffer *buffer)
+    // {
+    //     switch (_recv_statu)
+    //     {
+    //     case RECV_HTTP_LINE:
+    //         RecvHttpLine(buffer);
+
+    //     case RECV_HTTP_HEAD:
+    //         RecvHttpHead(buffer);
+
+    //     case RECV_HTTP_BODY:
+    //         RecvHttpBody(buffer);
+
+    //     }
+    //     return;
+    // }
     void RecvHttpRequest(Buffer *buffer)
     {
+        // DBG_LOG("Enter RecvHttpRequest, statu=%d, buffer readable=%lu", _recv_statu, buffer->CurrentEnableReadSpaceSize());
         switch (_recv_statu)
         {
         case RECV_HTTP_LINE:
             RecvHttpLine(buffer);
+            //  DBG_LOG("After RecvHttpLine, statu=%d", _recv_statu);
         case RECV_HTTP_HEAD:
             RecvHttpHead(buffer);
+            //  DBG_LOG("After RecvHttpHead, statu=%d", _recv_statu);
         case RECV_HTTP_BODY:
             RecvHttpBody(buffer);
+            // DBG_LOG("After RecvHttpBody, statu=%d", _recv_statu);
         }
-        return;
     }
 };
 class Http_Server
 {
-    private:
-    using Handler = std::function<void(const HttpRequest& ,HttpResponse*)>;
-    std::unordered_map<std::string,Handler> _get_route;
-    std::unordered_map<std::string,Handler> _post_route;
-    std::unordered_map<std::string,Handler> _put_route;
-    std::unordered_map<std::string,Handler> _delete_route;
-    std::string _basedir;//web根目录
+private:
+    using Handler = std::function<void(const HttpRequest &, HttpResponse *)>;
+    using Handlers = std::vector<std::pair<std::regex, Handler>>;
+    Handlers _get_route;
+    Handlers _post_route;
+    Handlers _put_route;
+    Handlers _delete_route;
+    std::string _basedir; // web根目录
     TcpSever _server;
-    void WriteResponse(); //将response种的数据按照一定的http响应格式发送
-    void FileHandler(); //静态分发
-    void Route();
-    void OnConnected();//设置上下文
-    void OnMessage();//缓冲区数据解析+处理
-    public:
-    Http_Server();
-    void SetBasedir(const std::string& path);
-    void Get(const std::string& pattern,Handler & handler);
-    void Put(const std::string& pattern,Handler & handler);
-    void Post(const std::string& pattern,Handler & handler);
-    void Delete(const std::string& pattern,Handler & handler);
-    void SetThreadCount(int count);
-    void EnableInactiveRelease(int timeout);
-    void Listen();
+    void Eerr_Hander(const HttpRequest &req, HttpResponse *res)
+    {
+        std::string path = _basedir + "/404.html";
+        std::string buffer;
+        Uitl::ReadFile(path, &buffer);
+        res->Setbody(buffer, "text/html");
+        return;
+    }
+    // 将response种的数据按照一定的http响应格式发送
+    void WriteResponse(const ConnPtr &conn, HttpRequest &req, HttpResponse *res)
+    {
+        if (req.Is_Cose() == true)
+        {
+            res->SetHeader("Connection", "close");
+        }
+        else
+        {
+            res->SetHeader("Connection", "keep-alive");
+        }
+        // if (res->_body.empty() == false && res->HasHeader("Content-Length") == false)
+        // {
+        //     res->SetHeader("Content-Length", std::to_string(res->_body.size()));
+        // }
+        if (!res->HasHeader("Content-Length"))
+        {
+            res->SetHeader("Content-Length", std::to_string(res->_body.size()));
+        }
+        if (res->_body.empty() == false && res->HasHeader("Content-Type") == false)
+        {
+            res->SetHeader("Content-Type", "application/octet-stream");
+        }
+        if (res->Is_Redirect == true)
+        {
+            res->SetHeader("Location", res->Redirect);
+        }
+
+        std::stringstream ss;
+        ss << req._version << " " << std::to_string(res->_status) << " " << Uitl::StatuDesc(res->_status) << "\r\n";
+        for (auto &it : res->_headers)
+        {
+            ss << it.first << ": " << it.second << "\r\n";
+        }
+        ss << "\r\n";
+        ss << res->_body;
+        conn->Send(ss.str().c_str(), ss.str().size());
+        return;
+    }
+    // 静态分发
+    bool IsFileHandler(const HttpRequest &req)
+    {
+        // 1.必须设置了根目录
+        if (_basedir.empty() == true)
+        {
+            return false;
+        }
+        // 2.必须时get或者head
+        if (!(req._method == "GET" || req._method == "HEAD"))
+        {
+            return false;
+        }
+        // 3.请求的路径必须时一个合格的路径
+        if (!Uitl::VaildPath(req._path))
+        {
+            return false;
+        }
+        std::string back_path = _basedir + req._path;
+        if (back_path.back() == '/')
+        {
+            back_path += "index.html";
+        }
+        // req._path = back_path;
+        if (Uitl::IsRegular(back_path) == false)
+            return false;
+        return true;
+    }
+
+    void FileHandler(HttpRequest &req, HttpResponse *res)
+    {
+        std::string back_path = _basedir + req._path;
+        if (req._path.back() == '/')
+        {
+            back_path += "index.html";
+        }
+
+        bool ret = Uitl::ReadFile(back_path, &res->_body);
+        if (ret == false)
+        {
+            res->_status = 404;
+            return;
+        }
+        res->SetHeader("Content-Type", Uitl::ExMime(back_path));
+        return;
+    }
+    void Dispather(HttpRequest &req, HttpResponse *res, Handlers &handlers)
+    {
+        for (auto &handler : handlers)
+        {
+            std::regex &re = handler.first;
+            Handler &func = handler.second;
+
+            bool ret = std::regex_match(req._path, req._matches, re);
+            if (ret == false)
+            {
+
+                continue;
+            }
+            return func(req, res);
+        }
+        res->_status = 404;
+    }
+    void Route(HttpRequest &req, HttpResponse *res)
+    {
+        if (IsFileHandler(req))
+        {
+            FileHandler(req, res);
+            return;
+        }
+        bool routed = false;
+        if (req._method == "GET" || req._method == "HEAD")
+        {
+            Dispather(req, res, _get_route);
+            routed = true;
+        }
+        else if (req._method == "POST")
+        {
+            Dispather(req, res, _post_route);
+            routed = true;
+        }
+        else if (req._method == "PUT")
+        {
+            Dispather(req, res, _put_route);
+            routed = true;
+        }
+        else if (req._method == "DELETE")
+        {
+            Dispather(req, res, _delete_route);
+            routed = true;
+        }
+        if (!routed)
+        {
+            res->_status = 405;
+        }
+    }
+    void OnConnected1(const ConnPtr &conn)
+    {
+        conn->Set_Context(HttpContent());
+        DBG_LOG("NEW CONNECTION %p", conn.get());
+
+    } // 设置上下文
+    void OnMessage(const ConnPtr &conn, Buffer *buffer) // 缓冲区数据解析+处理
+    {
+
+        // 1.获取上下文
+        while (buffer->CurrentEnableReadSpaceSize() > 0)
+        {
+            HttpContent *context = conn->Get_Context()->Get<HttpContent>();
+            // 2.从缓冲区当中拿数据
+            context->RecvHttpRequest(buffer);
+            HttpRequest &req = context->Request();
+
+            HttpResponse res(context->resqstatu());
+            if (context->resqstatu() >= 400)
+            {
+                Eerr_Hander(req, &res);
+                WriteResponse(conn, req, &res);
+                context->Reset();
+                buffer->MoveReadPosition(buffer->CurrentEnableReadSpaceSize());
+                conn->Shutdown();
+                return;
+            }
+            if (context->RecvStatu() != RECV_HTTP_OVER)
+            {
+                return;
+            }
+            // 3.获取Request
+
+            // 4.路由任务
+            Route(req, &res);
+            // 组织数据发送
+            if (req._method == "HEAD")
+            {
+                res._body.clear();
+                // 如果已经设置了 Content-Length，也需要调整为 0
+                if (res.HasHeader("Content-Length"))
+                {
+                    res.SetHeader("Content-Length", "0");
+                }
+            }
+            WriteResponse(conn, req, &res);
+
+            // 重置上下文
+            context->Reset();
+            // 根据长短连接是否关闭
+            if (res.Is_Cose() == true)
+            {
+                conn->Shutdown();
+                return;
+            }
+        }
+    }
+
+public:
+    Http_Server(int port, int timeout = 10)
+        : _server(port)
+    {
+        _server.Set_Conn_Connect_Callback(std::bind(&Http_Server::OnConnected1, this, std::placeholders::_1));
+        _server.Set_Msg_Callback(std::bind(&Http_Server::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
+        _server.Enable_Is_Delay_del(timeout);
+    }
+    void SetBasedir(const std::string &path)
+    {
+        if (!Uitl::IsDirectory(path))
+            return;
+        _basedir = path;
+    }
+    void Get(const std::string &pattern, const Handler &handler)
+    {
+        _get_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+    void Put(const std::string &pattern, const Handler &handler)
+    {
+        _put_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+    void Post(const std::string &pattern, const Handler &handler)
+    {
+        _post_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+    void Delete(const std::string &pattern, const Handler &handler)
+    {
+        _delete_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+    void SetThreadCount(int count)
+    {
+        _server.Set_Slave_Thread_Cnt(count);
+    }
+
+    void Listen()
+    {
+        _server.Start();
+    }
 };
